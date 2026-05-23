@@ -1,0 +1,444 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+
+        /* === v3 性能：惰性渲染屏外卡片 === */
+        #scroll-container > div {
+            content-visibility: auto;
+            contain-intrinsic-size: auto 200px;
+        }
+
+        
+        /* 基础与过渡 */
+        /* v1.4 动态背景适配 */
+        body {
+            /* 移除原本的背景色，改为透明，由遮罩层和Canvas接管 */
+            background-color: transparent !important; 
+        }
+
+        #bg-canvas {
+            z-index: -2; /* 最底层 */
+        }
+        
+        #bg-overlay {
+            z-index: -1; /* 位于 Canvas 之上，内容之下 */
+            backdrop-filter: blur(0px); /* 预留给后续可能的毛玻璃特效 */
+        }
+        .transition-300 { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+        .nav-scroll { -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+        .nav-scroll::-webkit-scrollbar { display: none; }
+        .pb-safe { padding-bottom: env(safe-area-inset-bottom, 20px); }
+        
+        /* 选项交互样式 (适配暗黑) */
+        .option-btn.selected { border-color: #4F46E5; background-color: #EEF2FF; color: #4F46E5; font-weight: 600; }
+        .dark .option-btn.selected { border-color: #6366F1; background-color: #312E81; color: #C7D2FE; }
+        
+        .option-btn.correct { border-color: #10B981; background-color: #ECFDF5; color: #047857; font-weight: bold; }
+        .dark .option-btn.correct { border-color: #059669; background-color: #064E3B; color: #6EE7B7; }
+        
+        .option-btn.wrong { border-color: #EF4444; background-color: #FEF2F2; color: #B91C1C; }
+        .dark .option-btn.wrong { border-color: #DC2626; background-color: #450A0A; color: #FCA5A5; }
+
+        /* 滚动模式反馈 */
+        .scroll-opt-correct { border-color: #10B981 !important; background-color: #ECFDF5 !important; color: #047857 !important; font-weight: bold; }
+        .dark .scroll-opt-correct { background-color: #064E3B !important; color: #6EE7B7 !important; border-color: #059669 !important; }
+        
+        .scroll-opt-wrong { border-color: #EF4444 !important; background-color: #FEF2F2 !important; color: #B91C1C !important; }
+        .dark .scroll-opt-wrong { background-color: #450A0A !important; color: #FCA5A5 !important; border-color: #DC2626 !important; }
+        
+        /* 动画类 */
+        .fade-in { animation: fadeIn 0.3s ease-out forwards; }
+        .pop-in { animation: popIn 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes popIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+
+        /* 进度条与背题 */
+        .score-bar { transition: width 1s cubic-bezier(0.4, 0, 0.2, 1); }
+        .step-active { background-color: #4F46E5; color: white; }
+        .dark .step-active { background-color: #6366F1; }
+        .step-inactive { background-color: #F1F5F9; color: #94A3B8; }
+        .dark .step-inactive { background-color: #1E293B; color: #64748B; }
+
+        /* 自定义弹窗背景 */
+        .modal-backdrop { background-color: rgba(15, 23, 42, 0.6); backdrop-filter: blur(8px); }
+
+        /* 名字按钮高亮动画 */
+        @keyframes highlightPulse {
+            0%, 100% { border-color: inherit; box-shadow: none; }
+            50% { border-color: #F43F5E; box-shadow: 0 0 0 4px rgba(244, 63, 94, 0.3); }
+        }
+        .name-highlight {
+            animation: highlightPulse 1s ease-in-out 5; /* 1秒一次，播放5次 = 5秒 */
+        }
+
+        .content {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 40px 20px;
+            line-height: 1.6;
+            color: #333;
+        }
+
+        /* 底部信息栏样式 - 核心部分 (适配暗黑与隐藏) */
+        .footer-info {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            /* 浅色模式背景 */
+            background: rgba(255, 255, 255, 0.95);
+            border-top: 1px solid #e2e8f0;
+            padding: 0 20px;
+            z-index: 99; /* 降低一点层级，避免挡住某些弹窗遮罩 */
+            
+            /* 初始状态：只显示第一行 */
+            height: 33px; 
+            overflow: hidden;
+            
+            /* 过渡效果：包含高度变化(hover)和位移变化(隐藏) */
+            transition: height 0.3s cubic-bezier(0.4, 0, 0.2, 1), transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.3s;
+            box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.05);
+        }
+
+        /* 暗黑模式适配 */
+        .dark .footer-info {
+            background: rgba(15, 23, 42, 0.95); /* Slate 900 */
+            border-top: 1px solid #1e293b; /* Slate 800 */
+            box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.2);
+        }
+
+        /* 隐藏状态：向下位移出屏幕 */
+        .footer-hidden {
+            transform: translateY(100%);
+        }
+
+        /* 鼠标悬停时展开 */
+        .footer-info:hover {
+            height: 120px;
+        }
+
+        /* 信息内容容器 */
+        .info-content {
+            padding: 10px 0;
+            color: #64748b; /* Slate 500 */
+            font-size: 14px;
+            line-height: 1.5;
+        }
+        .dark .info-content {
+            color: #94a3b8; /* Slate 400 */
+        }
+
+        /* 第一行信息 */
+        .info-first-line {
+            color: #4f46e5; /* Indigo 600 */
+            font-size: 14px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-weight: 600;
+        }
+        .dark .info-first-line {
+            color: #818cf8; /* Indigo 400 */
+        }
+
+        /* 详细信息 */
+        .info-details {
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px dashed #e2e8f0;
+            opacity: 0;
+            transform: translateY(-10px);
+            transition: opacity 0.3s ease, transform 0.3s ease;
+        }
+        .dark .info-details {
+            border-top: 1px dashed #334155;
+        }
+
+        .footer-info:hover .info-details {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        /* 移动端适配 */
+        @media (max-width: 768px) {
+            .footer-info {
+                height: 33px;
+                padding: 0 15px;
+            }
+            .footer-info:hover {
+                height: 130px;
+            }
+            .info-first-line {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 5px;
+            }
+        }
+
+        @keyframes slideDown { from { opacity:0; transform:translateY(-10px); } to { opacity:1; transform:translateY(0); } }
+        .animate-fade-in { animation: slideDown 0.3s ease-out forwards; }
+
+        #mssp-report-card {
+            background: white; /* 成绩单强制使用白色背景，模拟真实纸质感 */
+            color: #1e293b;
+        }
+        /* 防止二维码容器在暗黑模式下反色导致无法识别 */
+        #qrcode-container img {
+            max-width: 100%;
+            height: auto;
+            display: block;
+            margin: 0 auto;
+        }
+        #security-canvas {
+            pointer-events: none;
+        }
+
+        /* === v3：索引侧边栏 Canvas 模式（消除 500+ DOM 节点） === */
+        #scroll-marker-sidebar {
+            left: 0;
+            width: 20px;
+            padding: 0;
+            display: flex;
+            cursor: pointer;
+            background: transparent;
+        }
+        #scroll-marker-sidebar:hover {
+            background: rgba(100, 116, 139, 0.05);
+        }
+
+        @media (min-width: 1024px) {
+            #scroll-marker-sidebar {
+                left: calc(50% - 420px);
+                width: 40px;
+            }
+        }
+
+        #sidebar-canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* === v2: 认证界面全页面双栏布局 === */
+        /* 保护顶栏布局不被 runMSSPVerification 的 className 覆盖 */
+        #verify-status-header {
+            display: flex !important;
+            flex-wrap: wrap !important;
+            align-items: center !important;
+            justify-content: space-between !important;
+            gap: 0.5rem !important;
+        }
+        #verify-status-icon {
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            width: 2.5rem !important;
+            height: 2.5rem !important;
+            border-radius: 9999px !important;
+        }
+        #view-verify-result {
+            min-height: 0; /* 允许 flex 子元素收缩 */
+        }
+
+        /* 筛选标签激活态 */
+        .verify-filter-btn.active-all {
+            background-color: #EEF2FF !important;
+            color: #4F46E5 !important;
+            font-weight: 700;
+        }
+        .dark .verify-filter-btn.active-all {
+            background-color: rgba(99, 102, 241, 0.3) !important;
+            color: #C7D2FE !important;
+        }
+
+        .verify-filter-btn.active-correct {
+            background-color: #ECFDF5 !important;
+            color: #047857 !important;
+            font-weight: 700;
+        }
+        .dark .verify-filter-btn.active-correct {
+            background-color: rgba(5, 150, 105, 0.3) !important;
+            color: #6EE7B7 !important;
+        }
+
+        .verify-filter-btn.active-wrong {
+            background-color: #FEF2F2 !important;
+            color: #B91C1C !important;
+            font-weight: 700;
+        }
+        .dark .verify-filter-btn.active-wrong {
+            background-color: rgba(220, 38, 38, 0.3) !important;
+            color: #FCA5A5 !important;
+        }
+
+        /* 题目列表项样式 */
+        .v-q-item {
+            transition: all 0.15s ease;
+            border-left: 3px solid transparent;
+        }
+        .v-q-item:hover {
+            background-color: rgba(79, 70, 229, 0.05);
+        }
+        .v-q-item.v-q-correct {
+            border-left-color: #10B981;
+        }
+        .v-q-item.v-q-wrong {
+            border-left-color: #EF4444;
+        }
+        .v-q-item.v-q-selected {
+            background-color: rgba(79, 70, 229, 0.08) !important;
+            border-left-color: #4F46E5 !important;
+            box-shadow: inset 2px 0 6px rgba(79, 70, 229, 0.1);
+        }
+        .dark .v-q-item.v-q-selected {
+            background-color: rgba(99, 102, 241, 0.15) !important;
+            border-left-color: #6366F1 !important;
+        }
+
+        /* 详情面板中选项对比样式 */
+        .v-detail-option {
+            transition: all 0.2s ease;
+            border: 2px solid transparent;
+        }
+        .v-detail-option.is-correct {
+            border-color: #10B981 !important;
+            background-color: #ECFDF5 !important;
+            color: #047857 !important;
+        }
+        .dark .v-detail-option.is-correct {
+            border-color: #059669 !important;
+            background-color: #064E3B !important;
+            color: #6EE7B7 !important;
+        }
+        .v-detail-option.is-wrong {
+            border-color: #EF4444 !important;
+            background-color: #FEF2F2 !important;
+            color: #B91C1C !important;
+        }
+        .dark .v-detail-option.is-wrong {
+            border-color: #DC2626 !important;
+            background-color: #450A0A !important;
+            color: #FCA5A5 !important;
+        }
+        .v-detail-option.is-correct-answer {
+            border-color: #10B981 !important;
+            background-color: #ECFDF5 !important;
+        }
+        .dark .v-detail-option.is-correct-answer {
+            background-color: #064E3B !important;
+        }
+
+        /* 移动端：详情面板变为底部弹出 */
+        @media (max-width: 1023px) {
+            #verify-detail-panel {
+                position: fixed;
+                bottom: 0;
+                left: 0;
+                right: 0;
+                max-height: 60vh;
+                z-index: 60;
+                border-radius: 16px 16px 0 0;
+                box-shadow: 0 -8px 40px rgba(0,0,0,0.15);
+                display: none;
+            }
+            #verify-detail-panel.mobile-open {
+                display: flex !important;
+            }
+            #verify-list-panel {
+                width: 100% !important;
+            }
+            /* 移动端遮罩 */
+            #verify-mobile-overlay {
+                display: none;
+                position: fixed;
+                inset: 0;
+                background: rgba(0,0,0,0.4);
+                z-index: 59;
+            }
+            #verify-mobile-overlay.show {
+                display: block;
+            }
+        }
+
+        /* 详情面板内：题干高亮 */
+        .v-detail-question {
+            line-height: 1.8;
+            font-size: 15px;
+        }
+
+        /* 认证界面字体对比度修复：提升所有灰色文字的亮度 */
+        #view-verify-result .text-slate-400 {
+            color: #64748b !important; /* slate-500, 比 slate-400 更深 */
+        }
+        .dark #view-verify-result .text-slate-400 {
+            color: #94a3b8 !important; /* slate-400 在暗色下保持可见 */
+        }
+        #view-verify-result .text-slate-500,
+        #view-verify-result .text-slate-500\\.dark {
+            color: #334155 !important; /* slate-700 */
+        }
+        .dark #view-verify-result .text-slate-500 {
+            color: #cbd5e1 !important; /* slate-300 */
+        }
+        /* 筛选标签的非激活态文本加亮 */
+        #verify-filter-tabs .verify-filter-btn:not([class*="active"]) {
+            color: #475569 !important; /* slate-600 */
+        }
+        .dark #verify-filter-tabs .verify-filter-btn:not([class*="active"]) {
+            color: #94a3b8 !important; /* slate-400 */
+        }
+        #verify-filter-tabs .verify-filter-btn:not([class*="active"]):hover {
+            color: #1e293b !important; /* slate-800 */
+        }
+        .dark #verify-filter-tabs .verify-filter-btn:not([class*="active"]):hover {
+            color: #e2e8f0 !important; /* slate-200 */
+        }
+        /* 列表项文本加亮 */
+        .v-q-item .text-slate-500,
+        .v-q-item .text-slate-400 {
+            color: #475569 !important; /* slate-600 */
+        }
+        .dark .v-q-item .text-slate-500,
+        .dark .v-q-item .text-slate-400 {
+            color: #94a3b8 !important; /* slate-400 */
+        }
+        .v-q-item .text-slate-700 {
+            color: #1e293b !important; /* slate-800 */
+        }
+        .dark .v-q-item .text-slate-700 {
+            color: #e2e8f0 !important; /* slate-200 */
+        }
+        /* 详情面板空状态提示文字加亮 */
+        #verify-detail-content .text-slate-400,
+        #verify-detail-content .text-slate-600 {
+            color: #475569 !important; /* slate-600 */
+            opacity: 0.8 !important;
+        }
+        .dark #verify-detail-content .text-slate-400,
+        .dark #verify-detail-content .text-slate-600 {
+            color: #94a3b8 !important; /* slate-400 */
+            opacity: 1 !important;
+        }
+        /* 导航按钮文字加亮 */
+        #verify-detail-content .text-slate-500 {
+            color: #334155 !important;
+        }
+        .dark #verify-detail-content .text-slate-500 {
+            color: #cbd5e1 !important;
+        }
+        /* 筛选计数数字加亮 */
+        .verify-filter-btn .opacity-60 {
+            opacity: 0.85 !important;
+        }
+        /* 底部按钮文字加亮 */
+        #verify-footer .text-slate-600 {
+            color: #334155 !important;
+        }
+        .dark #verify-footer .text-slate-600 {
+            color: #cbd5e1 !important;
+        }
+        /* 顶栏模式标签 */
+        #verify-status-header .text-slate-400 {
+            color: #64748b !important;
+        }
+        .dark #verify-status-header .text-slate-400 {
+            color: #94a3b8 !important;
+        }

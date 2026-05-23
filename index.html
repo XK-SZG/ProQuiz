@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>ProQuiz | 智能全能刷题系统</title>
+    <title>ProQuiz</title>
     
     <!-- 核心库 -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/lucide@latest"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="lib/tailwindcss.js"></script>
+    <script src="lib/lucide.min.js"></script>
+    <script src="lib/chart.js"></script>
     
     <!-- 【重要】引入外部题目数据文件 -->
     <script src="questions.js"></script>
@@ -25,7 +25,7 @@
     <script src="dynamic_background/theme_cosmic.js"></script>
 
     <!-- 其他库 -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="lib/qrcode.min.js"></script>
 
     <!-- 配置 Tailwind 暗黑模式 -->
     <script>
@@ -33,253 +33,40 @@
             darkMode: 'class',
         }
     </script>
+    
+    <!-- 密钥配置 (Git 忽略) -->
+    <script src="js/secret.js"></script>
 
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
-        
-        /* 基础与过渡 */
-        /* v1.4 动态背景适配 */
-        body {
-            /* 移除原本的背景色，改为透明，由遮罩层和Canvas接管 */
-            background-color: transparent !important; 
-        }
+    <!-- 应用模块（按依赖顺序） -->
+    <script src="js/config.js"></script>
+    <script src="js/state.js"></script>
+    <script src="js/ui.js"></script>
+    <script src="js/dashboard.js"></script>
+    <script src="js/mistakes.js"></script>
+    <script src="js/settings.js"></script>
+    <script src="js/quiz-memo.js"></script>
+    <script src="js/quiz-scroll.js"></script>
+    <script src="js/quiz-engine.js"></script>
+    <script src="js/mssp.js"></script>
+    <script src="js/app.js"></script>
 
-        #bg-canvas {
-            z-index: -2; /* 最底层 */
-        }
-        
-        #bg-overlay {
-            z-index: -1; /* 位于 Canvas 之上，内容之下 */
-            backdrop-filter: blur(0px); /* 预留给后续可能的毛玻璃特效 */
-        }
-        .transition-300 { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
-        .nav-scroll { -webkit-overflow-scrolling: touch; scrollbar-width: none; }
-        .nav-scroll::-webkit-scrollbar { display: none; }
-        .pb-safe { padding-bottom: env(safe-area-inset-bottom, 20px); }
-        
-        /* 选项交互样式 (适配暗黑) */
-        .option-btn.selected { border-color: #4F46E5; background-color: #EEF2FF; color: #4F46E5; font-weight: 600; }
-        .dark .option-btn.selected { border-color: #6366F1; background-color: #312E81; color: #C7D2FE; }
-        
-        .option-btn.correct { border-color: #10B981; background-color: #ECFDF5; color: #047857; font-weight: bold; }
-        .dark .option-btn.correct { border-color: #059669; background-color: #064E3B; color: #6EE7B7; }
-        
-        .option-btn.wrong { border-color: #EF4444; background-color: #FEF2F2; color: #B91C1C; }
-        .dark .option-btn.wrong { border-color: #DC2626; background-color: #450A0A; color: #FCA5A5; }
 
-        /* 滚动模式反馈 */
-        .scroll-opt-correct { border-color: #10B981 !important; background-color: #ECFDF5 !important; color: #047857 !important; font-weight: bold; }
-        .dark .scroll-opt-correct { background-color: #064E3B !important; color: #6EE7B7 !important; border-color: #059669 !important; }
-        
-        .scroll-opt-wrong { border-color: #EF4444 !important; background-color: #FEF2F2 !important; color: #B91C1C !important; }
-        .dark .scroll-opt-wrong { background-color: #450A0A !important; color: #FCA5A5 !important; border-color: #DC2626 !important; }
-        
-        /* 动画类 */
-        .fade-in { animation: fadeIn 0.3s ease-out forwards; }
-        .pop-in { animation: popIn 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        @keyframes popIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+    <link rel="stylesheet" href="css/style.css">
 
-        /* 进度条与背题 */
-        .score-bar { transition: width 1s cubic-bezier(0.4, 0, 0.2, 1); }
-        .step-active { background-color: #4F46E5; color: white; }
-        .dark .step-active { background-color: #6366F1; }
-        .step-inactive { background-color: #F1F5F9; color: #94A3B8; }
-        .dark .step-inactive { background-color: #1E293B; color: #64748B; }
-
-        /* 自定义弹窗背景 */
-        .modal-backdrop { background-color: rgba(15, 23, 42, 0.6); backdrop-filter: blur(8px); }
-
-        /* 名字按钮高亮动画 */
-        @keyframes highlightPulse {
-            0%, 100% { border-color: inherit; box-shadow: none; }
-            50% { border-color: #F43F5E; box-shadow: 0 0 0 4px rgba(244, 63, 94, 0.3); }
-        }
-        .name-highlight {
-            animation: highlightPulse 1s ease-in-out 5; /* 1秒一次，播放5次 = 5秒 */
-        }
-
-        .content {
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 40px 20px;
-            line-height: 1.6;
-            color: #333;
-        }
-
-        /* 底部信息栏样式 - 核心部分 (适配暗黑与隐藏) */
-        .footer-info {
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            /* 浅色模式背景 */
-            background: rgba(255, 255, 255, 0.95);
-            border-top: 1px solid #e2e8f0;
-            padding: 0 20px;
-            z-index: 99; /* 降低一点层级，避免挡住某些弹窗遮罩 */
-            
-            /* 初始状态：只显示第一行 */
-            height: 33px; 
-            overflow: hidden;
-            
-            /* 过渡效果：包含高度变化(hover)和位移变化(隐藏) */
-            transition: height 0.3s cubic-bezier(0.4, 0, 0.2, 1), transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.3s;
-            box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.05);
-        }
-
-        /* 暗黑模式适配 */
-        .dark .footer-info {
-            background: rgba(15, 23, 42, 0.95); /* Slate 900 */
-            border-top: 1px solid #1e293b; /* Slate 800 */
-            box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.2);
-        }
-
-        /* 隐藏状态：向下位移出屏幕 */
-        .footer-hidden {
-            transform: translateY(100%);
-        }
-
-        /* 鼠标悬停时展开 */
-        .footer-info:hover {
-            height: 120px;
-        }
-
-        /* 信息内容容器 */
-        .info-content {
-            padding: 10px 0;
-            color: #64748b; /* Slate 500 */
-            font-size: 14px;
-            line-height: 1.5;
-        }
-        .dark .info-content {
-            color: #94a3b8; /* Slate 400 */
-        }
-
-        /* 第一行信息 */
-        .info-first-line {
-            color: #4f46e5; /* Indigo 600 */
-            font-size: 14px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            font-weight: 600;
-        }
-        .dark .info-first-line {
-            color: #818cf8; /* Indigo 400 */
-        }
-
-        /* 详细信息 */
-        .info-details {
-            margin-top: 10px;
-            padding-top: 10px;
-            border-top: 1px dashed #e2e8f0;
-            opacity: 0;
-            transform: translateY(-10px);
-            transition: opacity 0.3s ease, transform 0.3s ease;
-        }
-        .dark .info-details {
-            border-top: 1px dashed #334155;
-        }
-
-        .footer-info:hover .info-details {
-            opacity: 1;
-            transform: translateY(0);
-        }
-
-        /* 移动端适配 */
-        @media (max-width: 768px) {
-            .footer-info {
-                height: 33px;
-                padding: 0 15px;
-            }
-            .footer-info:hover {
-                height: 130px;
-            }
-            .info-first-line {
-                flex-direction: column;
-                align-items: flex-start;
-                gap: 5px;
-            }
-        }
-
-        @keyframes slideDown { from { opacity:0; transform:translateY(-10px); } to { opacity:1; transform:translateY(0); } }
-        .animate-fade-in { animation: slideDown 0.3s ease-out forwards; }
-
-        #mssp-report-card {
-            background: white; /* 成绩单强制使用白色背景，模拟真实纸质感 */
-            color: #1e293b;
-        }
-        /* 防止二维码容器在暗黑模式下反色导致无法识别 */
-        #qrcode-container img {
-            display: block;
-            margin: 0 auto;
-        }
-        #security-canvas {
-            pointer-events: none;
-        }
-
-        .dark .status-marker { background-color: #334155; }
-        .status-marker.completed { background-color: #6366f1; }
-
-        /* 鼠标悬停在侧边栏区域时，宽度略微增加，方便观察 */
-        #scroll-marker-sidebar:hover {
-            width: 14px;
-            background: rgba(100, 116, 139, 0.05);
-        }
-        /* 索引侧边栏容器 */
-        #scroll-marker-sidebar {
-            left: 0;
-            width: 20px; /* 增加感应区域宽度 */
-            padding: 0 4px;
-            display: flex;
-            align-items: flex-start; /* 靠左对齐，宽度向右伸展 */
-            cursor: pointer;
-            background: transparent;
-        }
-
-        @media (min-width: 1024px) {
-            #scroll-marker-sidebar {
-                left: calc(50% - 420px); /* 贴近主容器 */
-                width: 40px; /* 桌面端更大的感应区 */
-            }
-        }
-
-        /* 小方块基础样式 */
-        .status-marker {
-            width: 6px; /* 基础宽度 */
-            background-color: #cbd5e1;
-            border-radius: 2px;
-            /* 取消 height 的 transition，因为鼠标移动时需要实时计算，transition 会产生延迟感 */
-            /* 只保留颜色的过渡 */
-            transition: background-color 0.3s, box-shadow 0.3s, filter 0.3s;
-            cursor: pointer;
-            transform-origin: left center; /* 以左侧为轴向右放大 */
-        }
-
-        .dark .status-marker { background-color: #334155; }
-        .status-marker.completed { 
-            background-color: #6366f1; 
-            box-shadow: 0 0 4px rgba(99, 102, 241, 0.3);
-        }
-
-        /* 绿色指针 */
-        #sidebar-pointer {
-            position: absolute;
-            left: 0;
-            width: 100%;
-            height: 4px;
-            background-color: #10b981; /* Emerald 500 */
-            box-shadow: 0 0 10px #10b981;
-            z-index: 50;
-            pointer-events: none;
-            border-radius: 2px;
-            /* 指针移动使用 transform 保证性能 */
-            transition: transform 0.1s ease-out;
-        }
-    </style>
 </head>
 <body class="min-h-screen pb-safe bg-slate-50 text-slate-800 dark:bg-slate-950 dark:text-slate-100">
+    
+    <!-- 自定义搜索框 (用于虚拟列表) -->
+    <div id="custom-search-bar" class="fixed top-4 right-4 z-[110] hidden bg-white dark:bg-slate-800 shadow-xl rounded-xl border border-slate-200 dark:border-slate-700 p-2 flex items-center gap-2 transform transition-all duration-300 translate-y-[-20px] opacity-0">
+        <i data-lucide="search" class="w-4 h-4 text-slate-400 ml-2"></i>
+        <input type="text" id="custom-search-input" placeholder="搜索题目 (Ctrl+F)" class="bg-transparent border-none outline-none text-sm w-48 text-slate-700 dark:text-slate-200 placeholder-slate-400">
+        <span id="custom-search-count" class="text-xs text-slate-400 font-mono w-12 text-center">0/0</span>
+        <div class="flex border-l border-slate-200 dark:border-slate-700 pl-1">
+            <button id="custom-search-prev" class="p-1.5 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 rounded"><i data-lucide="chevron-up" class="w-4 h-4"></i></button>
+            <button id="custom-search-next" class="p-1.5 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 rounded"><i data-lucide="chevron-down" class="w-4 h-4"></i></button>
+            <button id="custom-search-close" class="p-1.5 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 rounded ml-1 text-rose-500"><i data-lucide="x" class="w-4 h-4"></i></button>
+        </div>
+    </div>
     <!-- 进度条 -->
     <div id="global-progress-bar" class="fixed top-0 left-0 h-1 bg-indigo-600 z-[100] transition-all duration-500 shadow-[0_0_10px_rgba(79,70,229,0.5)]" style="width: 0%"></div>
 
@@ -294,12 +81,12 @@
 
         <!-- 自定义弹窗 (替代 Alert/Confirm) -->
         <div id="custom-modal" class="fixed inset-0 z-[100] modal-backdrop hidden flex items-center justify-center p-4">
-            <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl max-w-sm w-full p-6 pop-in transform transition-all scale-100 border border-slate-100 dark:border-slate-800">
+            <div id="custom-modal-content" class="bg-white/80 dark:bg-slate-900/80 backdrop-blur-md rounded-2xl shadow-2xl max-w-sm w-full p-6 pop-in transform transition-all scale-100 border border-slate-100 dark:border-slate-800 transition-[max-width] duration-300">
                 <div id="modal-icon" class="w-12 h-12 rounded-full bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 flex items-center justify-center mb-4 mx-auto">
                     <i data-lucide="info" class="w-6 h-6"></i>
                 </div>
                 <h3 id="modal-title" class="text-lg font-bold text-center text-slate-800 dark:text-slate-100 mb-2">提示</h3>
-                <p id="modal-msg" class="text-sm text-slate-500 dark:text-slate-400 text-center mb-6 leading-relaxed"></p>
+                <div id="modal-msg" class="text-sm text-slate-500 dark:text-slate-400 text-center mb-6 leading-relaxed"></div>
                 <div id="modal-actions" class="flex gap-3 justify-center">
                     <!-- 动态插入按钮 -->
                 </div>
@@ -307,7 +94,7 @@
         </div>
 
         <!-- Navigation -->
-        <nav class="sticky top-0 z-50 w-full bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 shadow-sm transition-colors duration-300">
+        <nav class="sticky top-0 z-50 w-full bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 shadow-sm transition-colors duration-300">
             <div class="max-w-7xl mx-auto px-4">
                 <div class="flex items-center justify-between h-16">
                     <!-- Left: Logo & User & Theme Toggle -->
@@ -352,8 +139,8 @@
             <section id="view-dashboard" class="view-section fade-in">
                 <h2 class="text-xl font-bold mb-4">学习数据总览</h2>
                 <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                    <div class="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between"><div><p class="text-xs text-slate-500 font-medium uppercase">平均得分率</p><h3 id="stat-accuracy" class="text-2xl font-bold mt-1">0%</h3></div><div class="mt-2 pt-2 border-t border-slate-100 dark:border-slate-800 text-xs text-slate-400 flex justify-between"><span>Max: <span id="stat-acc-max">0</span>%</span><span>Min: <span id="stat-acc-min">0</span>%</span></div></div>
-                    <div class="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between">
+                    <div class="bg-white/80 dark:bg-slate-900/80 backdrop-blur-md p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between"><div><p class="text-xs text-slate-500 font-medium uppercase">平均得分率</p><h3 id="stat-accuracy" class="text-2xl font-bold mt-1">0%</h3></div><div class="mt-2 pt-2 border-t border-slate-100 dark:border-slate-800 text-xs text-slate-400 flex justify-between"><span>Max: <span id="stat-acc-max">0</span>%</span><span>Min: <span id="stat-acc-min">0</span>%</span></div></div>
+                    <div class="bg-white/80 dark:bg-slate-900/80 backdrop-blur-md p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between">
                         <div>
                             <p class="text-xs text-slate-500 font-medium uppercase">累计刷题(次)</p>
                             <h3 id="stat-count" class="text-2xl font-bold mt-1">0</h3>
@@ -363,10 +150,10 @@
                             坚持就是胜利，加油！奥里给！
                         </div>
                     </div>
-                    <div class="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between"><div><p class="text-xs text-slate-500 font-medium uppercase">错题库总数</p><h3 id="stat-mistakes" class="text-2xl font-bold text-rose-600 dark:text-rose-500 mt-1">0</h3></div><div class="mt-2 pt-2 border-t border-slate-100 dark:border-slate-800 text-xs text-slate-400 flex justify-between"><span>Max错: <span id="stat-mis-max">0</span></span><span>Min错: <span id="stat-mis-min">0</span></span></div></div>
-                    <div class="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between"><div><p class="text-xs text-slate-500 font-medium uppercase">上次得分</p><h3 id="stat-last-score" class="text-2xl font-bold text-indigo-600 dark:text-indigo-400 mt-1">-</h3></div><div class="mt-2 pt-2 border-t border-slate-100 dark:border-slate-800 text-xs text-slate-400">时间: <span id="stat-last-time">-</span></div></div>
+                    <div class="bg-white/80 dark:bg-slate-900/80 backdrop-blur-md p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between"><div><p class="text-xs text-slate-500 font-medium uppercase">错题库总数</p><h3 id="stat-mistakes" class="text-2xl font-bold text-rose-600 dark:text-rose-500 mt-1">0</h3></div><div class="mt-2 pt-2 border-t border-slate-100 dark:border-slate-800 text-xs text-slate-400 flex justify-between"><span>Max: <span id="stat-mis-max">0</span></span><span>Min: <span id="stat-mis-min">0</span></span></div></div>
+                    <div class="bg-white/80 dark:bg-slate-900/80 backdrop-blur-md p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between"><div><p class="text-xs text-slate-500 font-medium uppercase">上次得分</p><h3 id="stat-last-score" class="text-2xl font-bold text-indigo-600 dark:text-indigo-400 mt-1">-</h3></div><div class="mt-2 pt-2 border-t border-slate-100 dark:border-slate-800 text-xs text-slate-400">时间: <span id="stat-last-time">-</span></div></div>
                 </div>
-                <div class="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+                <div class="bg-white/80 dark:bg-slate-900/80 backdrop-blur-md p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
                     <div class="flex justify-between items-center mb-4">
                         <h3 class="font-bold text-sm text-slate-500 uppercase">近10次练习趋势</h3>
                         <div class="flex gap-4 text-xs">
@@ -381,36 +168,41 @@
             <!-- PRACTICE MENU -->
             <section id="view-practice" class="view-section hidden fade-in">
                 <h2 class="text-xl font-bold mb-4">选择练习模式</h2>
-                <div id="filter-warning" class="hidden mb-4 p-3 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 text-sm rounded-lg border border-amber-200 dark:border-amber-800 flex items-center gap-2">
-                    <i data-lucide="filter" class="w-4 h-4"></i> 当前已开启题目筛选
-                </div>
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                     <!-- 按钮样式统一适配 Dark Mode -->
-                    <button onclick="startQuiz('sequential-2way')" class="p-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl hover:border-indigo-500 dark:hover:border-indigo-500 hover:shadow-md transition-300 text-left">
+                    <button onclick="startQuiz('sequential-2way')" class="p-6 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border border-slate-200 dark:border-slate-800 rounded-xl hover:border-indigo-500 dark:hover:border-indigo-500 hover:shadow-md transition-300 text-left">
                         <div class="w-10 h-10 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-lg flex items-center justify-center mb-3"><i data-lucide="layers"></i></div>
                         <h3 class="font-bold text-lg">顺序双向</h3><p class="text-sm text-slate-500 dark:text-slate-400 mt-1">列表展示，自由滚动。</p>
                     </button>
-                    <button onclick="startQuiz('sequential-1way')" class="p-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl hover:border-blue-500 dark:hover:border-blue-500 hover:shadow-md transition-300 text-left">
+                    <button onclick="startQuiz('sequential-1way')" class="p-6 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border border-slate-200 dark:border-slate-800 rounded-xl hover:border-blue-500 dark:hover:border-blue-500 hover:shadow-md transition-300 text-left">
                         <div class="w-10 h-10 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg flex items-center justify-center mb-3"><i data-lucide="arrow-right-circle"></i></div>
                         <h3 class="font-bold text-lg">顺序单向</h3><p class="text-sm text-slate-500 dark:text-slate-400 mt-1">逐题练习，无法回退。</p>
                     </button>
-                    <button onclick="startQuiz('random-2way')" class="p-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl hover:border-purple-500 dark:hover:border-purple-500 hover:shadow-md transition-300 text-left">
+                    <button onclick="startQuiz('random-2way')" class="p-6 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border border-slate-200 dark:border-slate-800 rounded-xl hover:border-purple-500 dark:hover:border-purple-500 hover:shadow-md transition-300 text-left">
                         <div class="w-10 h-10 bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 rounded-lg flex items-center justify-center mb-3"><i data-lucide="shuffle"></i></div>
                         <h3 class="font-bold text-lg">随机双向</h3><p class="text-sm text-slate-500 dark:text-slate-400 mt-1">随机列表，自由滚动。</p>
                     </button>
-                    <button onclick="startQuiz('random-1way')" class="p-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl hover:border-pink-500 dark:hover:border-pink-500 hover:shadow-md transition-300 text-left">
+                    <button onclick="startQuiz('random-1way')" class="p-6 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border border-slate-200 dark:border-slate-800 rounded-xl hover:border-pink-500 dark:hover:border-pink-500 hover:shadow-md transition-300 text-left">
                         <div class="w-10 h-10 bg-pink-50 dark:bg-pink-900/30 text-pink-600 dark:text-pink-400 rounded-lg flex items-center justify-center mb-3"><i data-lucide="move-right"></i></div>
                         <h3 class="font-bold text-lg">随机单向</h3><p class="text-sm text-slate-500 dark:text-slate-400 mt-1">随机逐题，强化应变。</p>
                     </button>
-                    <button onclick="startQuiz('memorize')" class="p-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl hover:border-emerald-500 dark:hover:border-emerald-500 hover:shadow-md transition-300 text-left">
+                    <button onclick="startQuiz('random-2way-draw')" class="p-6 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border border-slate-200 dark:border-slate-800 rounded-xl hover:border-orange-500 dark:hover:border-orange-500 hover:shadow-md transition-300 text-left">
+                        <div class="w-10 h-10 bg-orange-50 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 rounded-lg flex items-center justify-center mb-3"><i data-lucide="dices"></i></div>
+                        <h3 class="font-bold text-lg">双向随机抽选</h3><p class="text-sm text-slate-500 dark:text-slate-400 mt-1">指定数量，随机抽题，自由滚动。</p>
+                    </button>
+                    <button onclick="startQuiz('random-1way-draw')" class="p-6 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border border-slate-200 dark:border-slate-800 rounded-xl hover:border-teal-500 dark:hover:border-teal-500 hover:shadow-md transition-300 text-left">
+                        <div class="w-10 h-10 bg-teal-50 dark:bg-teal-900/30 text-teal-600 dark:text-teal-400 rounded-lg flex items-center justify-center mb-3"><i data-lucide="dice-5"></i></div>
+                        <h3 class="font-bold text-lg">单向随机抽选</h3><p class="text-sm text-slate-500 dark:text-slate-400 mt-1">指定数量，随机抽题，逐题练习。</p>
+                    </button>
+                    <button onclick="startQuiz('memorize')" class="p-6 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border border-slate-200 dark:border-slate-800 rounded-xl hover:border-emerald-500 dark:hover:border-emerald-500 hover:shadow-md transition-300 text-left">
                         <div class="w-10 h-10 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-lg flex items-center justify-center mb-3"><i data-lucide="book-open"></i></div>
                         <h3 class="font-bold text-lg">背简答题</h3><p class="text-sm text-slate-500 dark:text-slate-400 mt-1">四步记忆法：提示 → 分段 → 盲默。</p>
                     </button>
-                    <button onclick="startQuiz('speed')" class="p-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl hover:border-rose-500 dark:hover:border-rose-500 hover:shadow-md transition-300 text-left">
+                    <button onclick="startQuiz('speed')" class="p-6 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border border-slate-200 dark:border-slate-800 rounded-xl hover:border-rose-500 dark:hover:border-rose-500 hover:shadow-md transition-300 text-left">
                         <div class="w-10 h-10 bg-rose-50 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 rounded-lg flex items-center justify-center mb-3"><i data-lucide="timer"></i></div>
                         <h3 class="font-bold text-lg">秒题训练</h3><p class="text-sm text-slate-500 dark:text-slate-400 mt-1">根据分值倒计时，超时自动判错。</p>
                     </button>
-                    <button onclick="startQuiz('exam')" class="p-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl hover:border-slate-600 hover:shadow-md transition-300 text-left">
+                    <button onclick="startQuiz('exam')" class="p-6 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border border-slate-200 dark:border-slate-800 rounded-xl hover:border-slate-600 hover:shadow-md transition-300 text-left">
                         <div class="w-10 h-10 bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 rounded-lg flex items-center justify-center mb-3"><i data-lucide="graduation-cap"></i></div>
                         <h3 class="font-bold text-lg">模拟考试</h3><p class="text-sm text-slate-500 dark:text-slate-400 mt-1">全真模拟，计算总分。</p>
                     </button>
@@ -432,11 +224,8 @@
                 
                 <!-- Scroll Mode -->
                  <div class="relative max-w-3xl mx-auto">
-                    <div id="scroll-marker-sidebar" class="fixed z-[60] flex flex-col hidden transition-all duration-300 pointer-events-auto group">
-                        <!-- 指针元素 -->
-                        <div id="sidebar-pointer" class="absolute left-0 w-full bg-emerald-500 shadow-[0_0_8px_#10b981] z-10 transition-all duration-200 pointer-events-none" style="height: 4px; top: 0;"></div>
-                        <!-- 小方块容器 (用于放置动态生成的 marker) -->
-                        <div id="marker-container" class="flex flex-col gap-[1px] w-full h-full relative"></div>
+                    <div id="scroll-marker-sidebar" class="fixed z-[60] hidden transition-all duration-300 pointer-events-auto" style="overflow: hidden;">
+                        <!-- Canvas 由 JS 动态创建，替代原 500+ 个 DOM 节点 -->
                     </div>
 
                     <!-- 滚动题目容器 -->
@@ -446,7 +235,7 @@
                 
                 <!-- Single Mode -->
                 <div id="single-container" class="hidden">
-                    <div class="bg-white dark:bg-slate-900 p-6 sm:p-8 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 min-h-[300px]">
+                    <div class="bg-white/80 dark:bg-slate-900/80 backdrop-blur-md p-6 sm:p-8 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 min-h-[300px]">
                         
                         <!-- 题型徽章与分数 -->
                         <div class="flex justify-between items-start mb-4">
@@ -504,7 +293,7 @@
                 </div>
                 
                 <!-- Scroll Footer -->
-                <div id="scroll-footer" class="fixed bottom-0 left-0 w-full bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 p-4 pb-safe hidden z-50">
+                <div id="scroll-footer" class="fixed bottom-0 left-0 w-full bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 p-4 pb-safe hidden z-50">
                     <div class="max-w-3xl mx-auto">
                         <button id="scroll-submit-btn" onclick="handleScrollSubmit()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-3 rounded-xl font-bold shadow-lg shadow-indigo-100 dark:shadow-none">提交所有答案</button>
                     </div>
@@ -518,8 +307,8 @@
                 <p id="res-greeting" class="text-slate-500 dark:text-slate-400 mb-2"></p>
                 <p id="res-timestamp" class="text-xs text-slate-400 dark:text-slate-500 mb-2"></p>
                 <div class="grid grid-cols-2 gap-4 max-w-md mx-auto mb-2">
-                    <div class="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm"><p class="text-xs text-slate-500 uppercase">实得分数</p><div class="flex items-baseline justify-center gap-1 mt-2"><h3 id="res-score" class="text-3xl font-bold text-indigo-600 dark:text-indigo-400">0</h3><span class="text-sm text-slate-400">/ <span id="res-total">100</span></span></div></div>
-                    <div class="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm"><p class="text-xs text-slate-500 uppercase">平均速度</p><h3 id="res-time" class="text-3xl font-bold text-slate-800 dark:text-slate-100 mt-2">0s</h3></div>
+                    <div class="bg-white/80 dark:bg-slate-900/80 backdrop-blur-md p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm"><p class="text-xs text-slate-500 uppercase">实得分数</p><div class="flex items-baseline justify-center gap-1 mt-2"><h3 id="res-score" class="text-3xl font-bold text-indigo-600 dark:text-indigo-400">0</h3><span class="text-sm text-slate-400">/ <span id="res-total">100</span></span></div></div>
+                    <div class="bg-white/80 dark:bg-slate-900/80 backdrop-blur-md p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm"><p class="text-xs text-slate-500 uppercase">平均速度</p><h3 id="res-time" class="text-3xl font-bold text-slate-800 dark:text-slate-100 mt-2">0s</h3></div>
                 </div>
                 <div class="flex justify-center gap-4 mb-2">
                     <button onclick="switchView('dashboard')" class="px-8 py-3 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 font-bold rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700">返回首页</button>
@@ -546,7 +335,7 @@
                     </div>
                     
                     <!-- 二维码容器：略微缩小以适应紧凑布局 -->
-                    <div id="qrcode-container" class="bg-white p-1.5 rounded-lg shadow-inner mx-auto w-40 h-40 flex items-center justify-center border border-slate-100">
+                    <div id="qrcode-container" class="bg-white p-1.5 rounded-lg shadow-inner mx-auto w-56 h-56 flex items-center justify-center border border-slate-100">
                         <!-- 二维码 -->
                     </div>
                     
@@ -559,10 +348,88 @@
             </section>
 
             <!-- VERIFY RESULT VIEW -->
-            <section id="view-verify-result" class="view-section hidden max-w-lg mx-auto pt-10">
-                <div class="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-800">
+            <section id="view-verify-result" class="view-section hidden h-[calc(100vh-64px)] flex flex-col">
+                <div class="shrink-0 px-4 py-3 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800" id="verify-topbar-wrapper">
+                    <div id="verify-status-header" class="flex items-center justify-between flex-wrap gap-2 transition-colors duration-300">
+                        <div class="flex items-center gap-3">
+                            <div id="verify-status-icon" class="w-10 h-10 rounded-full flex items-center justify-center bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400">
+                                <i data-lucide="shield-check" class="w-5 h-5"></i>
+                            </div>
+                            <div>
+                                <span id="v-name" class="font-bold text-slate-800 dark:text-slate-100">---</span>
+                                <span class="text-xs text-slate-400 ml-2" id="v-mode">---</span>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-4 text-sm">
+                            <div class="text-center">
+                                <div id="v-score" class="text-2xl font-black text-indigo-600 dark:text-indigo-400">---</div>
+                                <div class="text-[10px] text-slate-400 uppercase">得分</div>
+                            </div>
+                            <div class="text-center">
+                                <div id="v-accuracy" class="text-lg font-bold text-slate-700 dark:text-slate-200">---</div>
+                                <div class="text-[10px] text-slate-400 uppercase">正确率</div>
+                            </div>
+                            <div class="text-center hidden sm:block">
+                                <div id="v-time" class="text-sm font-bold text-slate-600 dark:text-slate-300">---</div>
+                                <div class="text-[10px] text-slate-400 uppercase">用时</div>
+                            </div>
+                            <div class="text-center hidden sm:block">
+                                <div id="v-date" class="text-xs text-slate-500">---</div>
+                                <div class="text-[10px] text-slate-400 uppercase">时间</div>
+                            </div>
+                        </div>
+                    </div>
+                    <span id="verify-status-title" class="hidden"></span>
+                    <span id="verify-status-msg" class="hidden"></span>
+                    <div id="v-tamper-warn" class="hidden mt-2 p-2 bg-rose-50 dark:bg-rose-900/20 text-rose-600 dark:text-rose-400 text-xs rounded-lg border border-rose-100 dark:border-rose-900/30 flex items-start gap-2">
+                        <i data-lucide="alert-triangle" class="w-3.5 h-3.5 shrink-0 mt-0.5"></i>
+                        <span><b>篡改警告：</b>数字指纹与本地题库不匹配，请以显示得分为准。</span>
+                    </div>
+                </div>
+
+                <!-- 筛选 + 搜索栏 -->
+                <div id="verify-filter-bar" class="shrink-0 px-4 py-2 bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm border-b border-slate-100 dark:border-slate-800 flex items-center gap-3 overflow-x-auto">
+                    <div class="flex gap-1.5" id="verify-filter-tabs">
+                        <button data-filter="all" class="verify-filter-btn px-3 py-1.5 text-xs font-bold rounded-full bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300">全部 <span id="vf-count-all" class="ml-1 opacity-60">0</span></button>
+                        <button data-filter="correct" class="verify-filter-btn px-3 py-1.5 text-xs font-bold rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/30 hover:text-emerald-700 dark:hover:text-emerald-300 transition-colors">正确 <span id="vf-count-correct" class="ml-1 opacity-60">0</span></button>
+                        <button data-filter="wrong" class="verify-filter-btn px-3 py-1.5 text-xs font-bold rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-rose-100 dark:hover:bg-rose-900/30 hover:text-rose-700 dark:hover:text-rose-300 transition-colors">错误 <span id="vf-count-wrong" class="ml-1 opacity-60">0</span></button>
+                    </div>
+                    <div class="flex-1 min-w-0"></div>
+                    <input id="verify-search" type="text" placeholder="搜索题目..." class="w-36 sm:w-48 px-3 py-1.5 text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg outline-none focus:border-indigo-500 dark:focus:border-indigo-500 text-slate-700 dark:text-slate-200 transition-colors">
+                </div>
+
+                <!-- 双栏主体 -->
+                <div id="verify-main" class="flex-1 flex overflow-hidden">
+                    <div id="verify-list-panel" class="w-full lg:w-1/2 border-r border-slate-200 dark:border-slate-800 flex flex-col">
+                        <div id="v-question-list" class="flex-1 overflow-y-auto nav-scroll px-3 py-2 space-y-1.5">
+                            <!-- 动态生成 -->
+                        </div>
+                        <div id="verify-list-empty" class="hidden flex-1 flex items-center justify-center text-slate-400 dark:text-slate-600 text-sm">
+                            没有匹配的题目
+                        </div>
+                    </div>
+                    <div id="verify-detail-panel" class="hidden lg:flex lg:w-1/2 flex-col">
+                        <div id="verify-detail-content" class="flex-1 overflow-y-auto nav-scroll p-4">
+                            <div class="flex items-center justify-center h-full text-slate-400 dark:text-slate-600 text-sm">
+                                <div class="text-center">
+                                    <i data-lucide="mouse-pointer-click" class="w-8 h-8 mx-auto mb-2 opacity-40"></i>
+                                    <p>点击左侧题目查看详情</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 底部操作栏 -->
+                <div id="verify-footer" class="shrink-0 px-4 py-3 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 flex gap-3">
+                    <button onclick="window.location.href=window.location.pathname" class="flex-1 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-bold text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">关闭</button>
+                    <button onclick="switchView('practice')" class="flex-1 py-2.5 bg-indigo-600 text-white rounded-xl font-bold text-sm hover:bg-indigo-700 transition-colors">进入系统</button>
+                </div>
+
+                <div style="display:none" aria-hidden="true">
+<!-- OLD_DELETED -->
                     <!-- 头部状态栏 -->
-                    <div id="verify-status-header" class="p-6 text-center">
+                    <div id="verify-status-header-old" style="display:none">
                         <div id="verify-status-icon" class="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-3">
                             <i data-lucide="shield-check" class="w-10 h-10"></i>
                         </div>
@@ -617,6 +484,9 @@
                 </div>
             </section>
 
+            <!-- 移动端题目详情遮罩 -->
+            <div id="verify-mobile-overlay" onclick="closeVerifyDetail()"></div>
+
             <!-- MISTAKES -->
             <section id="view-mistakes" class="view-section hidden">
                 <div class="flex justify-between items-center mb-6"><h2 class="text-xl font-bold">错题本</h2><button onclick="clearMistakes()" class="text-sm text-rose-500 hover:text-rose-700">清空错题</button></div>
@@ -627,28 +497,8 @@
             <section id="view-settings" class="view-section hidden max-w-3xl mx-auto">
                 <h2 class="text-xl font-bold mb-6">系统设置</h2>
                 
-                <!-- 筛选模块 -->
-                <div class="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm mb-6">
-                    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-3">
-                        <h3 class="font-bold flex items-center gap-2 flex-wrap">
-                            <i data-lucide="filter" class="w-4 h-4 text-indigo-600 dark:text-indigo-400"></i> 
-                            题目筛选规则
-                            <span class="text-xs font-normal text-slate-400 dark:text-slate-500 ml-1">(执行顺序: 从上到下)</span>
-                        </h3>
-                        <div class="flex gap-2">
-                            <button onclick="openManualSelect()" class="px-3 py-1.5 text-sm bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 font-bold rounded-lg hover:bg-amber-100 flex items-center gap-1 transition-colors">
-                                <i data-lucide="list-todo" class="w-3 h-3"></i> 手动选择
-                            </button>
-                            <button onclick="addFilter()" class="px-3 py-1.5 text-sm bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 font-bold rounded-lg hover:bg-indigo-100 flex items-center gap-1 transition-colors">
-                                <i data-lucide="plus" class="w-3 h-3"></i> 添加规则
-                            </button>
-                        </div>
-                    </div>
-                    <div id="filter-list" class="space-y-3"></div>
-                </div>
-
                 <!-- 题目偏好设置 -->
-                <div class="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4 mb-6">
+                <div class="bg-white/80 dark:bg-slate-900/80 backdrop-blur-md p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4 mb-6">
                     <h3 class="font-bold mb-2 flex items-center gap-2">
                         <i data-lucide="list-checks" class="w-4 h-4 text-indigo-600"></i> 
                         题目呈现偏好
@@ -663,7 +513,7 @@
                 </div>
 
                 <!-- 秒题设置模块 -->
-                <div class="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+                <div class="bg-white/80 dark:bg-slate-900/80 backdrop-blur-md p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
                     <h3 class="font-bold mb-2 flex items-center gap-2"><i data-lucide="timer" class="w-4 h-4 text-rose-600"></i> 秒题模式设置</h3>
                     <div>
                         <label class="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-1">单选题限时 (秒)</label>
@@ -680,7 +530,7 @@
                 </div>
 
                 <!-- 个性化设置模块 -->
-                <div class="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4 mb-6">
+                <div class="bg-white/80 dark:bg-slate-900/80 backdrop-blur-md p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4 mb-6">
                     <h3 class="font-bold mb-2 flex items-center gap-2">
                         <i data-lucide="palette" class="w-4 h-4 text-purple-600 dark:text-purple-400"></i> 
                         个性化外观
@@ -707,9 +557,9 @@
                 </div>
 
                 <!-- 成绩单安全设置模块 -->
-                <div class="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4 mb-6">
+                <div class="bg-white/80 dark:bg-slate-900/80 backdrop-blur-md p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4 mb-6">
                     <h3 class="font-bold mb-2 flex items-center gap-2">
-                        <i data-lucide="shield-lock" class="w-4 h-4 text-indigo-600"></i> 
+                        <i data-lucide="shield-check" class="w-4 h-4 text-indigo-600"></i> 
                         成绩单安全设置
                     </h3>
                     <div>
@@ -722,44 +572,6 @@
                 </div>
             </section>
 
-            <!-- MANUAL SELECTION VIEW (UPDATED) -->
-            <section id="view-manual-select" class="view-section hidden max-w-4xl mx-auto">
-                <div class="sticky top-16 z-30 bg-slate-50 dark:bg-slate-950 pt-4 pb-2 mb-2 border-b border-slate-200 dark:border-slate-800 shadow-sm">
-                    <div class="flex justify-between items-center mb-3">
-                        <h2 class="text-xl font-bold flex items-center gap-2">
-                            <i data-lucide="list-todo" class="w-6 h-6 text-indigo-600 dark:text-indigo-400"></i> 
-                            手动筛选
-                        </h2>
-                        <div class="flex gap-2">
-                            <button onclick="switchView('settings')" class="px-4 py-2 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-lg font-bold text-sm transition-colors">取消</button>
-                            <button onclick="saveManualSelect()" class="px-4 py-2 bg-indigo-600 text-white hover:bg-indigo-700 rounded-lg font-bold text-sm shadow-lg shadow-indigo-200 dark:shadow-none transition-colors">确认生效</button>
-                        </div>
-                    </div>
-                    
-                    <!-- 控制栏 -->
-                    <div class="flex items-center justify-between bg-white dark:bg-slate-900 p-3 rounded-xl border border-slate-200 dark:border-slate-800">
-                        <label class="flex items-center gap-3 cursor-pointer select-none">
-                            <div class="relative flex items-center">
-                                <input type="checkbox" id="manual-select-all" onchange="toggleManualAll(this)" class="peer w-6 h-6 cursor-pointer appearance-none rounded-md border-2 border-slate-300 transition-all checked:border-emerald-500 checked:bg-emerald-500 hover:border-emerald-400 dark:border-slate-600 dark:checked:bg-emerald-600 dark:checked:border-emerald-600">
-                                <i data-lucide="check" class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-4 h-4 text-white opacity-0 peer-checked:opacity-100 pointer-events-none"></i>
-                            </div>
-                            <span class="font-bold text-slate-700 dark:text-slate-200 text-sm">全选 / 全取消</span>
-                        </label>
-                        
-                        <div class="flex gap-3 text-xs font-bold">
-                            <div class="flex items-center gap-1"><div class="w-3 h-3 rounded-full bg-emerald-500"></div><span class="text-emerald-600 dark:text-emerald-400">显示</span></div>
-                            <div class="flex items-center gap-1"><div class="w-3 h-3 rounded-full bg-rose-500"></div><span class="text-rose-600 dark:text-rose-400">隐藏</span></div>
-                            <div class="flex items-center gap-1"><div class="w-3 h-3 rounded-full bg-slate-300 dark:bg-slate-600"></div><span class="text-slate-400">默认</span></div>
-                        </div>
-                    </div>
-                    <p class="text-xs text-center text-slate-400 mt-2">点击题目切换状态：<span class="text-emerald-600 font-bold">绿色显示</span> ➔ <span class="text-rose-500 font-bold">红色隐藏</span> ➔ <span class="text-slate-500">默认</span></p>
-                </div>
-                
-                <div id="manual-list" class="space-y-2 pb-24 px-1">
-                    <!-- JS生成列表 -->
-                </div>
-            </section>
-        
             <!-- 可展开的底部信息栏 -->
             <div id="main-footer" class="footer-info">
                 <div class="info-content">
@@ -769,2429 +581,13 @@
                     <div class="info-details">
                         <p>本网站为个人开发项目，仅供学习交流使用</p>
                         <p>联系方式: kangxu346@gmail.com | GitHub: @XK-SZG</p>
-                        <p>开发始于: 2026/1/8 | 最后更新: 2026/1/11 | 版本: v1.6</p>
+                        <p>开发始于: 2026/1/8 | 最后更新: 2026/5/23 | 版本: v1.7</p>
                     </div>
                 </div>
             </div>
         </div>
     </main>
 
-    <script>
-
-        // 基类接口参考 (仅作文档说明)
-        class BaseTheme {
-            constructor(ctx, w, h, isDark, config) {
-                this.ctx = ctx; this.w = w; this.h = h; this.isDark = isDark;
-                this.overlayOpacity = 0.8; // 默认遮罩浓度
-            }
-            resize(w, h) { this.w = w; this.h = h; }
-            draw() {} // 每一帧调用
-            onMouseMove(mouse) {} // {x,y,px,py}
-            onThemeChange(isDark) {}
-            onIntensityChange(val) {} // 0.0 - 1.0
-            destroy() {}
-        }
-
-        // --- 0. THEME & CUSTOM MODAL LOGIC ---
-        function initTheme() {
-            const savedTheme = localStorage.getItem('theme');
-            const isDark = savedTheme === 'dark' || (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches);
-            applyTheme(isDark);
-        }
-
-        function applyTheme(isDark) {
-            if (isDark) { document.documentElement.classList.add('dark'); localStorage.setItem('theme', 'dark'); } 
-            else { document.documentElement.classList.remove('dark'); localStorage.setItem('theme', 'light'); }
-            updateThemeIcon(isDark);
-            if (window.myChart) updateChartTheme(isDark);
-            
-            // v1.4 通知背景管理器
-            if (bgManager) bgManager.updateThemeMode(isDark);
-        }
-
-        function toggleTheme() {
-            const isDark = document.documentElement.classList.contains('dark');
-            applyTheme(!isDark);
-        }
-
-        function updateThemeIcon(isDark) {
-            const iconBtn = document.getElementById('theme-toggle-btn');
-            if (iconBtn) {
-                iconBtn.innerHTML = isDark ? '<i data-lucide="sun" class="w-5 h-5"></i>' : '<i data-lucide="moon" class="w-5 h-5"></i>';
-                lucide.createIcons();
-            }
-        }
-
-        function updateChartTheme(isDark) {
-            const gridColor = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)';
-            const textColor = isDark ? '#94A3B8' : '#64748B';
-            if (window.myChart && window.myChart.options) {
-                window.myChart.options.scales.y.grid.color = gridColor;
-                window.myChart.options.scales.y.ticks.color = textColor;
-                window.myChart.options.scales.x.grid.color = gridColor;
-                window.myChart.options.scales.x.ticks.color = textColor;
-                window.myChart.update();
-            }
-        }
-
-        function closeModal() { document.getElementById('custom-modal').classList.add('hidden'); }
-        function showAlert(msg, title = "提示") {
-            const m = document.getElementById('custom-modal');
-            document.getElementById('modal-title').innerText = title;
-            document.getElementById('modal-msg').innerText = msg;
-            const acts = document.getElementById('modal-actions');
-            acts.innerHTML = `<button onclick="closeModal()" class="px-6 py-2 bg-slate-800 dark:bg-slate-700 text-white font-bold rounded-lg hover:bg-slate-900 dark:hover:bg-slate-600 w-full">知道了</button>`;
-            m.classList.remove('hidden');
-        }
-        function showConfirm(msg, onConfirm, title = "请确认") {
-            const m = document.getElementById('custom-modal');
-            document.getElementById('modal-title').innerText = title;
-            document.getElementById('modal-msg').innerText = msg;
-            const acts = document.getElementById('modal-actions');
-            const confirmBtnId = `btn-conf-${Date.now()}`;
-            acts.innerHTML = `<button onclick="closeModal()" class="px-6 py-2 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 flex-1">取消</button><button id="${confirmBtnId}" class="px-6 py-2 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 flex-1">确定</button>`;
-            m.classList.remove('hidden');
-            document.getElementById(confirmBtnId).onclick = () => { closeModal(); onConfirm(); };
-        }
-        function handleExitQuiz() { showConfirm("确定退出当前练习吗？进度将丢失。", () => switchView('practice')); }
-
-        // --- 1. CONFIG & STATE ---
-        const SCORE_RULES = { single: 1, multiple: 3, short: 10 };
-        const DEFAULT_FILTERS = [
-            {"action":"show","type":"range","val1":"1","val2":"29"},
-            {"action":"show","type":"range","val1":"31","val2":"40"},
-            {"action":"show","type":"single","val1":"49","val2":""},
-            {"action":"show","type":"single","val1":"101","val2":""},
-            {"action":"show","type":"range","val1":"103","val2":"105"},
-            {"action":"show","type":"range","val1":"107","val2":"112"},
-            {"action":"show","type":"range","val1":"155","val2":"158"}
-        ];
-
-        let state = {
-            mode: null, 
-            questions: [], 
-            currentIdx: 0, 
-            answers: {}, 
-            answersScore: {},
-            startTime: 0, 
-            timer: null, 
-            timerVal: 0, 
-            singleStage: 'answering', 
-            memoStep: 1, 
-            mistakesSession: [], 
-            scrollSubmitted: false,
-            // --- 修改这里：将空数组 [] 换成 DEFAULT_FILTERS ---
-            settings: JSON.parse(localStorage.getItem('quiz_cfg')) || { 
-                single: 3, 
-                multiple: 5, 
-                short: 2.5, 
-                randomizeOptions: false,
-                filters: DEFAULT_FILTERS, // 使用上面定义的默认预设
-                verifyPassword: ''
-            }
-        };
-
-        const MSSP_MODE_INDEX = {
-            'sequential-2way': 1,
-            'sequential-1way': 2,
-            'random-2way': 3,
-            'random-1way': 4,
-            'memorize': 5,
-            'speed': 6,
-            'exam': 7
-        };
-
-        const MSSP_MODE_NAME = {
-            1: '顺序双向', 2: '顺序单向', 3: '随机双向', 4: '随机单向',
-            5: '背简答题', 6: '秒题训练', 7: '模拟考试'
-        };
-
-        // --- 鱼眼交互核心配置 ---
-        const FISHEYE_CONFIG = {
-            maxScale: 3.5,      // 最大放大倍数
-            radius: 120,        // 感应半径（像素）
-            baseWidth: 6,       // 基础宽度
-            desktopBaseWidth: 10 // 桌面端基础宽度
-        };
-
-        const MSSP_INTERNAL_SECRET = `MjTlsYrorqHnrpfmnLrnvZHnu5zlupTnlKgyNDAy54+t`; // 口令
-
-        // v1.4 背景管理器实例
-        var bgManager = null; 
-        let securityAnimId = null;
-
-        // --- 2. INIT ---
-        window.onload = () => {
-            // 1. 基础初始化
-            initTheme(); 
-            lucide.createIcons();
-            initUserName();
-
-            // 2. 初始化动态背景
-            // 【重要】这里直接写 bgManager = ...，前面不要加 let/const/var
-            // 确保我们修改的是上面定义的全局变量
-            if (typeof window.BackgroundManager !== 'undefined') {
-                bgManager = new window.BackgroundManager();
-                const savedBg = localStorage.getItem('quiz_bg_theme') || 'none';
-                
-                // 延迟一帧加载主题，确保Canvas已准备好
-                requestAnimationFrame(() => {
-                    if (bgManager) bgManager.loadTheme(savedBg);
-                });
-            } else {
-                console.error("BackgroundManager class not found. Check core.js");
-            }
-            
-            // 检测是否有扫码验证请求
-            const urlParams = new URLSearchParams(window.location.search);
-            const msspCode = urlParams.get('mssp');
-            if (msspCode) {
-                // 延迟一点等页面和 Lucide 图标加载完
-                setTimeout(() => runMSSPVerification(msspCode), 800);
-            }
-
-            // 3. 检测新用户
-            if (!localStorage.getItem('user_name')) {
-                setTimeout(() => {
-                    showAlert('欢迎来到 ProQuiz！\n为了记录您的学习历程，请先在左上角设置一个昵称。', '新用户向导');
-                    document.getElementById('nav-username').focus();
-                }, 500);
-            }
-            
-            // 4. 检查外部数据
-            if (typeof questionPool === 'undefined') {
-                showAlert('未检测到题目数据！请确保 questions.js 文件存在并正确引入。', '严重错误');
-            } else {
-                updateDashboard();
-                loadSettingsToUI();
-            }
-        };
-
-        function initUserName() {
-            const name = localStorage.getItem('user_name');
-            const btn = document.getElementById('nav-user-btn');
-            if (name) {
-                btn.innerText = name;
-            } else {
-                btn.innerText = "点击设置名称";
-            }
-        }
-
-        function openNameModal() {
-            const lastUpdate = parseInt(localStorage.getItem('user_name_ts') || '0');
-            const currentName = localStorage.getItem('user_name');
-            const timeDiff = Date.now() - lastUpdate;
-            const oneDay = 86400000;
-
-            // 如果已经设置过且未满24小时
-            if (currentName && timeDiff < oneDay) {
-                const hoursLeft = Math.ceil((oneDay - timeDiff) / (1000 * 60 * 60));
-                showAlert(`昵称已锁定。\n为了保持记录一致性，您在 ${hoursLeft} 小时内无法修改昵称。`, '无法修改');
-                return;
-            }
-
-            // 构造输入型弹窗
-            const m = document.getElementById('custom-modal');
-            document.getElementById('modal-title').innerText = "设置你的昵称";
-            // 插入输入框到 msg 区域
-            document.getElementById('modal-msg').innerHTML = `
-                <p class="mb-4 text-sm">请设置一个昵称用于记录成绩。<br><span class="text-rose-500 font-bold">注意：设置后24小时内不可修改。</span></p>
-                <input type="text" id="modal-input-name" class="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg outline-none focus:border-indigo-500 text-center font-bold text-lg" placeholder="输入昵称" value="${currentName || ''}">
-            `;
-            
-            const acts = document.getElementById('modal-actions');
-            acts.innerHTML = `
-                <button onclick="closeModal()" class="px-6 py-2 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 flex-1">取消</button>
-                <button onclick="saveNameFromModal()" class="px-6 py-2 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 flex-1">确认</button>
-            `;
-            m.classList.remove('hidden');
-            setTimeout(() => document.getElementById('modal-input-name').focus(), 100);
-        }
-
-        function saveNameFromModal() {
-            const input = document.getElementById('modal-input-name');
-            const val = input.value.trim();
-            if (!val) {
-                input.classList.add('ring-2', 'ring-rose-500');
-                return;
-            }
-            localStorage.setItem('user_name', val);
-            localStorage.setItem('user_name_ts', Date.now().toString());
-            document.getElementById('nav-user-btn').innerText = val;
-            closeModal();
-            showAlert('昵称设置成功！', '系统提示');
-        }
-
-        function highlightNameBtn() {
-            const container = document.getElementById('nav-user-container');
-            container.classList.remove('name-highlight'); // 重置
-            void container.offsetWidth; // 触发重绘
-            container.classList.add('name-highlight');
-        }
-
-        function updateUserName() {
-            const input = document.getElementById('nav-username');
-            if (input.value.trim()) { localStorage.setItem('user_name', input.value.trim()); localStorage.setItem('user_name_ts', Date.now().toString()); input.disabled = true; showAlert('昵称已保存，24小时内不可修改。'); }
-        }
-
-        function switchView(viewId) {
-            // 1. 停止计时器等逻辑 (保持原有代码)
-            clearInterval(state.timer); 
-            stopIntensityLoop();
-            state.timerVal = 0;
-            document.getElementById('timer-box').classList.add('hidden');
-
-            // 2. 隐藏所有视图
-            document.querySelectorAll('.view-section').forEach(el => el.classList.add('hidden'));
-            
-            // 3. 显示目标视图
-            const target = document.getElementById(`view-${viewId}`);
-            if (target) target.classList.remove('hidden');
-
-            // 4. 【关键】侧边索引栏显示逻辑
-            const sidebar = document.getElementById('scroll-marker-sidebar');
-            if (sidebar) {
-                // 只有在 quiz 视图且模式包含 2way 时显示
-                if (viewId === 'quiz' && state.mode && state.mode.includes('2way')) {
-                    sidebar.classList.remove('hidden');
-                } else {
-                    sidebar.classList.add('hidden');
-                }
-            }
-
-            // 5. 底部栏和其他逻辑 (保持原有代码)
-            const footer = document.getElementById('main-footer');
-            if (footer) {
-                if (viewId === 'quiz' || viewId === 'verify-result') footer.classList.add('footer-hidden');
-                else footer.classList.remove('footer-hidden');
-            }
-
-            // 进度条处理
-            const progressBar = document.getElementById('global-progress-bar');
-            if (progressBar && viewId !== 'quiz') {
-                progressBar.style.width = '0%';
-            }
-
-            window.scrollTo(0, 0);
-            lucide.createIcons();
-        }
-
-        // --- 3. ALGORITHMS (V2) ---
-        function calculateFuzzyScore(standard, user) {
-            if (!user || !user.trim()) return 0;
-            if (!standard) return 100;
-            const strStd = standard.toLowerCase().trim();
-            const strUser = user.toLowerCase().trim();
-            if (strStd.length > 10 && strUser.length / strStd.length < 0.2) return 0; 
-            if (strStd.length < 5) return strUser.includes(strStd) || strStd.includes(strUser) ? 100 : 0;
-            const getFeatures = (text) => {
-                const features = new Set();
-                const enWords = text.match(/[a-z0-9]+/g) || [];
-                enWords.forEach(w => features.add(w));
-                const cnText = text.replace(/[^\u4e00-\u9fa5]/g, '');
-                for (let i = 0; i < cnText.length - 1; i++) features.add(cnText.substring(i, i + 2));
-                return features;
-            };
-            const featStd = getFeatures(strStd);
-            const featUser = getFeatures(strUser);
-            if (featStd.size === 0) return strUser.includes(strStd) ? 100 : 0;
-            let hits = 0;
-            featStd.forEach(token => { if (featUser.has(token)) hits++; });
-            let scoreRatio = hits / featStd.size;
-            if (scoreRatio < 0.15) return 0;
-            let finalScore = scoreRatio >= 0.9 ? 100 : ((scoreRatio - 0.15) / 0.85) * 100;
-            return Math.round(Math.max(0, Math.min(100, finalScore)));
-        }
-
-        function shuffleQuestionOptions(q) {
-            if (q.type === 'short' || !q.options) return q;
-
-            // 1. 创建带索引的选项备份
-            let indexedOptions = q.options.map((text, index) => ({ text, originalIndex: index }));
-            
-            // 2. 打乱顺序
-            for (let i = indexedOptions.length - 1; i > 0; i--) {
-                const j = Math.floor(Math.random() * (i + 1));
-                [indexedOptions[i], indexedOptions[j]] = [indexedOptions[j], indexedOptions[i]];
-            }
-
-            // 3. 映射新选项文本
-            const newOptions = indexedOptions.map(item => item.text);
-            
-            // 4. 计算并更新正确答案的新索引
-            let newAnswer;
-            if (q.type === 'single') {
-                newAnswer = indexedOptions.findIndex(item => item.originalIndex === q.answer);
-            } else if (q.type === 'multiple') {
-                newAnswer = q.answer.map(oldIdx => 
-                    indexedOptions.findIndex(item => item.originalIndex === oldIdx)
-                ).sort((a, b) => a - b);
-            }
-
-            return { ...q, options: newOptions, answer: newAnswer };
-        }
-
-        function checkCorrect(q, ans) {
-            if (q.type === 'short' || ans === undefined) return false;
-            if (q.type === 'single') return ans === q.answer;
-            if (q.type === 'multiple') return JSON.stringify(ans) === JSON.stringify(q.answer.sort());
-            return false;
-        }
-        function formatAnswer(q) { if (q.type === 'single') return String.fromCharCode(65+q.answer); if (q.type === 'multiple') return q.answer.map(i=>String.fromCharCode(65+i)).join(''); return q.answer; }
-        function getPoints(type) { return SCORE_RULES[type] || 0; }
-
-        // --- 4. ENGINE ---
-        function applyFilters(allQuestions) {
-            const filters = state.settings.filters; if (!filters || filters.length === 0) return allQuestions;
-            let allowedIds = new Set(); if (filters.length > 0 && filters[0].action === 'hide') allQuestions.forEach(q => allowedIds.add(q.id));
-            filters.forEach(f => {
-                let targetIds = [];
-                if (f.type === 'single') { if (f.val1) targetIds.push(parseInt(f.val1)); } 
-                else if (f.type === 'range') { for (let i = (parseInt(f.val1)||0); i <= (parseInt(f.val2)||0); i++) targetIds.push(i); }
-                if (f.action === 'show') targetIds.forEach(id => allowedIds.add(id)); else targetIds.forEach(id => allowedIds.delete(id));
-            });
-            return allQuestions.filter(q => allowedIds.has(q.id));
-        }
-
-        function startQuiz(mode) {
-            // 1. 强制检查昵称
-            const currentUser = localStorage.getItem('user_name');
-            if (!currentUser || currentUser.trim() === '') {
-                showAlert('请先在左上角设置您的昵称，才能开始刷题哦！', '未设置昵称');
-                const oldClose = closeModal; 
-                closeModal = function() {
-                    document.getElementById('custom-modal').classList.add('hidden');
-                    highlightNameBtn();
-                    closeModal = oldClose;
-                };
-                return; 
-            }
-
-            state.mode = mode; state.currentIdx = 0; state.answers = {}; state.answersScore = {}; state.timerVal = 0;
-            state.mistakesSession = []; state.startTime = Date.now(); state.singleStage = 'answering'; state.memoStep = 1; state.scrollSubmitted = false;
-            
-            let qs = applyFilters([...questionPool]);
-            if (qs.length === 0) { showAlert('筛选规则下无题目！'); return; }
-
-            // 判定是否需要打乱选项和题目顺序
-            const isRandomSession = mode.includes('random') || mode === 'speed' || mode === 'exam';
-            
-            if (isRandomSession) {
-                // 题目顺序随机
-                qs.sort(() => Math.random() - 0.5);
-                
-                // --- 新增：选项顺序随机 ---
-                if (state.settings.randomizeOptions) {
-                    // 注意：必须使用深拷贝 {} ，防止修改原始的 questionPool
-                    qs = qs.map(q => shuffleQuestionOptions(JSON.parse(JSON.stringify(q))));
-                }
-            }
-
-            if (mode === 'memorize') qs = qs.filter(q => q.type === 'short');
-            
-            state.questions = qs;
-
-            const isRandomMode = mode.includes('random') || mode === 'speed' || mode === 'exam';
-            if (isRandomMode && state.settings.randomizeOptions) {
-                // 使用 map 创建新数组，避免修改原始 questionPool
-                state.questions = state.questions.map(q => shuffleQuestionOptions(JSON.parse(JSON.stringify(q))));
-            }
-            
-            // --- v1.4 计算正计时模式的“基准上限时间” ---
-            // 规则：单选10s，多选20s，简答60s (参考 Exam 模式)
-            state.referenceMaxTime = 0;
-            qs.forEach(q => {
-                if (q.type === 'single') state.referenceMaxTime += 10;
-                else if (q.type === 'multiple') state.referenceMaxTime += 20;
-                else state.referenceMaxTime += 60;
-            });
-            // ----------------------------------------
-
-            switchView('quiz'); document.getElementById('quiz-mode-label').innerText = mode.toUpperCase();
-            document.getElementById('quiz-progress').innerText = `共 ${qs.length} 题`;
-            
-            if (mode.includes('2way')) renderScrollMode(); else renderSingleMode();
-            
-            if (mode === 'exam') {
-                startTimer(); 
-            } else if (mode === 'speed') {
-                // speed 模式由 renderSingleMode 触发单题计时
-            } else {
-                startElapsedTimer(); 
-            }
-
-            updateGlobalProgress();
-        }
-
-        function startElapsedTimer() {
-            clearInterval(state.timer);
-            stopIntensityLoop();
-
-            const box = document.getElementById('timer-box');
-            box.classList.remove('hidden');
-            box.className = "px-3 py-1 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-full font-mono font-bold border border-slate-200 dark:border-slate-700";
-            
-            state.timerVal = 0;
-            
-            // 【核心】记录起点
-            state.startTime = Date.now();
-            
-            // 启动平滑循环
-            startIntensityLoop();
-
-            updateTimerDisplay(); 
-            
-            state.timer = setInterval(() => {
-                state.timerVal++;
-                updateTimerDisplay(); 
-            }, 1000);
-        }
-
-        // --- 5. SCROLL MODE ---
-        function renderScrollMode() {
-            const container = document.getElementById('scroll-container'); 
-            const footer = document.getElementById('scroll-footer'); 
-            const sidebar = document.getElementById('scroll-marker-sidebar');
-            const markerContainer = document.getElementById('marker-container');
-            const singleCont = document.getElementById('single-container');
-            
-            // 1. 切换容器显示
-            if(singleCont) singleCont.classList.add('hidden'); 
-                container.classList.remove('hidden'); 
-                footer.classList.remove('hidden');
-
-                state.scrollSubmitted = false;
-
-                // 2. 渲染题目内容
-                renderQuizCards(); 
-
-                // 3. 动态计算侧边索引栏
-                if (sidebar && markerContainer) {
-                sidebar.classList.remove('hidden');
-                
-                const navHeight = 80;
-                const footerHeight = 60;
-                const availableHeight = window.innerHeight - navHeight - footerHeight;
-                const count = state.questions.length;
-                
-                // 计算基础高度
-                const baseHeight = Math.max(2, (availableHeight / count) - 1);
-                
-                sidebar.style.top = `${navHeight}px`;
-                sidebar.style.height = `${availableHeight}px`;
-
-                const currentBaseWidth = window.innerWidth >= 1024 ? FISHEYE_CONFIG.desktopBaseWidth : FISHEYE_CONFIG.baseWidth;
-
-                markerContainer.innerHTML = state.questions.map((_, idx) => {
-                    return `<div id="marker-${idx}" 
-                                class="status-marker" 
-                                onclick="jumpToQuestion(${idx})" 
-                                style="height: ${baseHeight}px; width: ${currentBaseWidth}px;"></div>`;
-                }).join('');
-
-                // 绑定更新后的鼠标事件
-                // 使用 window 级别的移动监听可以实现“靠近”即触发，而不需要“碰到”
-                window.addEventListener('mousemove', (e) => {
-                    const rect = sidebar.getBoundingClientRect();
-                    // 如果鼠标在侧边栏附近 150px 范围内，触发鱼眼
-                    if (e.clientX > rect.left - 150 && e.clientX < rect.right + 100 &&
-                        e.clientY > rect.top && e.clientY < rect.bottom) {
-                        handleSidebarFishEye(e, baseHeight);
-                    } else {
-                        resetSidebarMarkers(baseHeight);
-                    }
-                });
-
-                window.onscroll = () => {
-                    updateSidebarPointer();
-                    updateGlobalProgress();
-                };
-            }
-            
-            // 初始化
-            state.questions.forEach((_, idx) => updateSideMarker(idx));
-            updateSidebarPointer();
-        }
-
-        // 辅助函数：专门渲染卡片
-        function renderQuizCards() {
-            const container = document.getElementById('scroll-container');
-            container.innerHTML = state.questions.map((q, idx) => {
-                let content = '';
-                if (q.type === 'single') {
-                    content = `<div class="grid gap-2 mt-3">${q.options.map((opt, oid) => `
-                        <label class="scroll-option-lbl flex items-center p-3 border border-slate-200 dark:border-slate-700 rounded-lg cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 transition-all" data-qidx="${idx}" data-oid="${oid}">
-                            <input type="radio" name="q_${idx}" value="${oid}" class="w-5 h-5 text-indigo-600" onchange="recordScrollAnswer(${idx}, ${oid})">
-                            <span class="ml-3 text-slate-700 dark:text-slate-300">${opt}</span>
-                        </label>`).join('')}</div>`;
-                } else if (q.type === 'multiple') {
-                    content = `<div class="grid gap-2 mt-3">${q.options.map((opt, oid) => `
-                        <label class="scroll-option-lbl flex items-center p-3 border border-slate-200 dark:border-slate-700 rounded-lg cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 transition-all" data-qidx="${idx}" data-oid="${oid}">
-                            <input type="checkbox" name="q_${idx}" value="${oid}" class="w-5 h-5 text-indigo-600" onchange="recordScrollAnswer(${idx}, null)">
-                            <span class="ml-3 text-slate-700 dark:text-slate-300">${opt}</span>
-                        </label>`).join('')}</div>`;
-                } else {
-                    content = `<textarea id="q_input_${idx}" onchange="recordScrollAnswer(${idx}, this.value)" class="w-full mt-3 p-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm h-24 text-slate-700 dark:text-slate-100" placeholder="在此输入简答..."></textarea>`;
-                }
-
-                return `
-                <div class="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border-2 border-slate-200 dark:border-slate-800 relative" id="card-${idx}">
-                    <div class="flex justify-between mb-2">
-                        <span class="text-xs font-bold text-slate-400">#${q.id} ${q.type.toUpperCase()}</span>
-                        <span class="text-xs font-bold text-indigo-500 bg-indigo-50 dark:bg-indigo-900/30 dark:text-indigo-400 px-2 py-1 rounded">${getPoints(q.type)}分</span>
-                    </div>
-                    <h4 class="font-bold text-slate-800 dark:text-slate-100 text-lg">${q.question}</h4>
-                    ${content}
-                    <div id="analysis-${idx}" class="hidden mt-4 pt-4 border-t border-slate-100 dark:border-slate-800 fade-in"></div>
-                </div>`;
-            }).join('');
-        }
-
-        // 鱼眼效果实现
-        function handleSidebarFishEye(e, baseHeight) {
-            const sidebar = document.getElementById('scroll-marker-sidebar');
-            const markers = document.querySelectorAll('.status-marker');
-            if (!sidebar || markers.length === 0) return;
-
-            const rect = sidebar.getBoundingClientRect();
-            const mouseY = e.clientY - rect.top; // 鼠标相对侧边栏顶部的 Y 坐标
-            const mouseX = e.clientX - rect.left; // 鼠标相对侧边栏左侧的 X 坐标
-
-            // 检查鼠标是否在感应区域内（可以适当放宽 X 轴感应）
-            const isCloseX = e.clientX < rect.right + 50 && e.clientX > rect.left - 50;
-
-            markers.forEach((marker) => {
-                const markerRect = marker.getBoundingClientRect();
-                const markerCenterY = (markerRect.top + markerRect.bottom) / 2 - rect.top;
-                
-                // 计算鼠标与方块中心的垂直距离
-                const distY = Math.abs(mouseY - markerCenterY);
-                
-                let scale = 1;
-                
-                if (isCloseX && distY < FISHEYE_CONFIG.radius) {
-                    // 使用余弦函数模拟平滑的波浪曲线 (0 到 1 之间)
-                    const cosDist = Math.cos((distY / FISHEYE_CONFIG.radius) * (Math.PI / 2));
-                    // 距离越近，power 越大
-                    const power = Math.pow(cosDist, 2); 
-                    scale = 1 + (FISHEYE_CONFIG.maxScale - 1) * power;
-                }
-
-                // 应用双维度缩放
-                const currentBaseWidth = window.innerWidth >= 1024 ? FISHEYE_CONFIG.desktopBaseWidth : FISHEYE_CONFIG.baseWidth;
-                
-                // 1. 宽度增加（横向鼓起）
-                marker.style.width = `${currentBaseWidth * scale}px`;
-                // 2. 高度增加（纵向挤开邻居）
-                marker.style.height = `${baseHeight * scale}px`;
-                
-                // 3. 视觉反馈：靠近的方块变亮
-                if (scale > 1.2) {
-                    marker.style.filter = `brightness(${1 + (scale - 1) * 0.2})`;
-                } else {
-                    marker.style.filter = `brightness(1)`;
-                }
-            });
-        }
-
-        // 重置鱼眼
-        function resetSidebarMarkers(baseHeight) {
-            const markers = document.querySelectorAll('.status-marker');
-            const currentBaseWidth = window.innerWidth >= 1024 ? FISHEYE_CONFIG.desktopBaseWidth : FISHEYE_CONFIG.baseWidth;
-            
-            markers.forEach(m => {
-                m.style.width = `${currentBaseWidth}px`;
-                m.style.height = `${baseHeight}px`;
-                m.style.filter = `brightness(1)`;
-            });
-        }
-
-        // 快速跳转
-        function jumpToQuestion(idx) {
-            const card = document.getElementById(`card-${idx}`);
-            if (card) {
-                const offset = 80; // 避开顶部导航栏
-                const bodyRect = document.body.getBoundingClientRect().top;
-                const elementRect = card.getBoundingClientRect().top;
-                const elementPosition = elementRect - bodyRect;
-                const offsetPosition = elementPosition - offset;
-
-                window.scrollTo({
-                    top: offsetPosition,
-                    behavior: 'smooth'
-                });
-            }
-        }
-
-        // 更新绿色位置指针
-        function updateSidebarPointer() {
-            const pointer = document.getElementById('sidebar-pointer');
-            const sidebar = document.getElementById('scroll-marker-sidebar');
-            if (!pointer || !sidebar || sidebar.classList.contains('hidden')) return;
-
-            // 获取当前滚动进度
-            const scrollTop = window.scrollY;
-            const docHeight = document.documentElement.scrollHeight - window.innerHeight;
-            const scrollPercent = scrollTop / docHeight;
-
-            // 获取侧边栏的物理高度
-            const sidebarHeight = sidebar.offsetHeight;
-            
-            // 计算指针位置
-            // 绿色指针代表当前屏幕顶部在题库中的进度
-            const targetY = scrollPercent * sidebarHeight;
-
-            pointer.style.transform = `translateY(${targetY}px)`;
-        }
-
-        function recordScrollAnswer(qIdx, val) {
-            if (state.scrollSubmitted) return; 
-            const q = state.questions[qIdx];
-            
-            // 1. 记录逻辑
-            if (q.type === 'single') state.answers[qIdx] = val;
-            else if (q.type === 'multiple') { 
-                const cbs = document.querySelectorAll(`input[name="q_${qIdx}"]:checked`); 
-                state.answers[qIdx] = Array.from(cbs).map(c => parseInt(c.value)).sort(); 
-            }
-            else state.answers[qIdx] = val;
-
-            // 2. 更新方块颜色
-            updateSideMarker(qIdx);
-
-            // 3. 更新顶端进度条
-            updateGlobalProgress();
-        }
-
-        function updateSideMarker(idx) {
-            const marker = document.getElementById(`marker-${idx}`);
-            if (!marker) return;
-
-            const ans = state.answers[idx];
-            const isCompleted = (ans !== undefined && ans !== null && ans !== '' && (!Array.isArray(ans) || ans.length > 0));
-
-            if (isCompleted) {
-                marker.classList.add('completed');
-            } else {
-                marker.classList.remove('completed');
-            }
-        }
-
-        // 辅助函数：更新单个方块颜色
-        function updateSideMarker(idx) {
-            const marker = document.getElementById(`marker-${idx}`);
-            if (!marker) return;
-
-            const ans = state.answers[idx];
-            const isCompleted = (ans !== undefined && ans !== null && ans !== '' && (!Array.isArray(ans) || ans.length > 0));
-
-            if (isCompleted) {
-                marker.classList.add('completed');
-            } else {
-                marker.classList.remove('completed');
-            }
-        }
-        function handleScrollSubmit() {
-            const btn = document.getElementById('scroll-submit-btn');
-            if (state.scrollSubmitted) { finishSession(); return; }
-
-            // 检查是否有未完成的题目
-            let missingCount = 0;
-            state.questions.forEach((q, idx) => {
-                const ans = state.answers[idx];
-                if (ans === undefined || ans === null || ans === '' || (Array.isArray(ans) && ans.length === 0)) {
-                    missingCount++;
-                }
-            });
-
-            const doSubmit = () => {
-                // 核心修改：停止计时器
-                clearInterval(state.timer);
-                stopIntensityLoop();
-
-                // --- v1.4 触发背景特效 (Scroll模式只触发一次总分) ---
-                if (bgManager) {
-                    // 计算一下这次总共得了多少分
-                    let totalEarned = 0;
-                    state.questions.forEach((q, i) => {
-                       // 简略计算逻辑，为了特效而已
-                       if(q.type!=='short' && checkCorrect(q, state.answers[i])) totalEarned += getPoints(q.type);
-                    });
-                    
-                    if (totalEarned > 0) {
-                        bgManager.triggerEvent('answer', {
-                            correct: true,
-                            text: "Done!",
-                            score: totalEarned
-                        });
-                    }
-                }
-                
-                state.scrollSubmitted = true;
-                btn.innerText = "查看分数 (点击跳转)"; 
-                btn.className = "w-full bg-emerald-600 text-white py-3 rounded-xl font-bold shadow-lg hover:bg-emerald-700 dark:shadow-none";
-                
-                state.questions.forEach((q, idx) => {
-                    const card = document.getElementById(`card-${idx}`); const analysisDiv = document.getElementById(`analysis-${idx}`);
-                    const inputs = card.querySelectorAll('input, textarea'); inputs.forEach(inp => inp.disabled = true);
-                    analysisDiv.classList.remove('hidden'); card.classList.remove('border-slate-200'); card.classList.remove('dark:border-slate-800');
-                    if (q.type !== 'short') {
-                        const isCorrect = checkCorrect(q, state.answers[idx]);
-                        card.classList.add(isCorrect ? 'border-emerald-500' : 'border-rose-500'); 
-                        if (!isCorrect) state.mistakesSession.push(q);
-                        const labels = card.querySelectorAll('.scroll-option-lbl');
-                        labels.forEach(lbl => {
-                            const oid = parseInt(lbl.dataset.oid);
-                            const isSelected = q.type==='single' ? state.answers[idx]===oid : (state.answers[idx]||[]).includes(oid);
-                            const isAns = q.type==='single' ? q.answer===oid : q.answer.includes(oid);
-                            if (isAns) lbl.classList.add('scroll-opt-correct'); else if (isSelected) lbl.classList.add('scroll-opt-wrong');
-                        });
-                        analysisDiv.innerHTML = `<p class="text-sm text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 p-3 rounded-lg"><span class="font-bold">解析:</span> ${q.analysis}</p><p class="text-sm font-bold mt-2 text-slate-600 dark:text-slate-300">正确答案: ${formatAnswer(q)}</p>`;
-                    } else {
-                        const userAns = state.answers[idx] || ''; const percent = calculateFuzzyScore(q.answer, userAns);
-                        const score = Math.round((percent / 100) * getPoints('short')); state.answersScore[idx] = score;
-                        const colorClass = score === getPoints('short') ? 'emerald' : (score > 0 ? 'amber' : 'rose');
-                        card.classList.add(`border-${colorClass}-500`);
-                        analysisDiv.innerHTML = `<div class="mb-3"><div class="flex justify-between items-end mb-1"><span class="text-sm font-bold text-slate-500 dark:text-slate-400">系统评分</span><span class="text-lg font-bold text-${colorClass}-600 dark:text-${colorClass}-400">${score} / ${getPoints('short')}</span></div><div class="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2"><div class="bg-${colorClass}-500 h-2 rounded-full" style="width: ${percent}%"></div></div></div><p class="text-sm text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 p-3 rounded-lg"><span class="font-bold">参考答案:</span> ${q.answer}<br><br><span class="font-bold">解析:</span> ${q.analysis}</p>`;
-                    }
-                });
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-            };
-
-            if (missingCount > 0) {
-                showConfirm(`还有 ${missingCount} 道题目未完成，确定要强制提交吗？`, doSubmit, '题目未做完');
-            } else {
-                showConfirm('确定提交所有答案吗？', doSubmit);
-            }
-        }
-
-        // --- 6. SINGLE MODE (UI UPDATED) ---
-        function renderSingleMode() {
-            document.getElementById('scroll-container').classList.add('hidden'); document.getElementById('scroll-footer').classList.add('hidden'); document.getElementById('single-container').classList.remove('hidden');
-            const q = state.questions[state.currentIdx];
-            document.getElementById('quiz-progress').innerText = `题目 ${state.currentIdx + 1} / ${state.questions.length}`;
-            const typeLabel = document.getElementById('single-q-type');
-            const hintText = document.getElementById('single-q-hint');
-            
-            // 题型视觉区分
-            if (q.type === 'multiple') { 
-                typeLabel.innerText = "多选题"; 
-                typeLabel.className = "inline-flex items-center gap-1 px-3 py-1 text-sm font-bold rounded-lg bg-purple-100 text-purple-700 border border-purple-200 dark:bg-purple-900/30 dark:text-purple-300 dark:border-purple-800"; 
-                hintText.classList.remove('hidden'); 
-            } else if (q.type === 'single') { 
-                typeLabel.innerText = "单选题"; 
-                typeLabel.className = "inline-flex items-center gap-1 px-3 py-1 text-sm font-bold rounded-lg bg-indigo-100 text-indigo-700 border border-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-800"; 
-                hintText.classList.add('hidden'); 
-            } else { 
-                typeLabel.innerText = "简答题"; 
-                typeLabel.className = "inline-flex items-center gap-1 px-3 py-1 text-sm font-bold rounded-lg bg-amber-100 text-amber-700 border border-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-800"; 
-                hintText.classList.add('hidden'); 
-            }
-            
-            document.getElementById('single-q-score').innerText = `${getPoints(q.type)}分`;
-            document.getElementById('single-q-text').innerText = q.question;
-            const optDiv = document.getElementById('single-options'); const shortDiv = document.getElementById('short-answer-area'); const memoDiv = document.getElementById('memo-area');
-            const btn = document.getElementById('btn-action'); const feedDiv = document.getElementById('single-feedback');
-            optDiv.innerHTML = ''; optDiv.classList.add('hidden'); shortDiv.classList.add('hidden'); memoDiv.classList.add('hidden'); feedDiv.classList.add('hidden');
-            state.singleStage = 'answering'; btn.innerText = '提交';
-            
-            if (state.mode === 'memorize') { renderMemoStep(); btn.innerText = state.memoStep === 4 ? '完成本题' : '下一步'; } 
-            else if (q.type === 'short') { shortDiv.classList.remove('hidden'); document.getElementById('single-short-input').value = state.answers[state.currentIdx] || ''; } 
-            else { 
-                optDiv.classList.remove('hidden'); 
-                q.options.forEach((opt, i) => { 
-                    const b = document.createElement('button'); 
-                    const icon = q.type === 'single' ? '<i data-lucide="circle" class="w-5 h-5 flex-shrink-0"></i>' : '<i data-lucide="square" class="w-5 h-5 flex-shrink-0"></i>'; 
-                    b.className = 'option-btn w-full p-4 text-left border border-slate-200 dark:border-slate-700 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-300 flex items-center gap-3 group'; 
-                    b.innerHTML = `<span class="text-slate-300 dark:text-slate-600 group-hover:text-indigo-400 transition-300">${icon}</span><span class="flex-1">${opt}</span>`; 
-                    b.onclick = () => { if(state.singleStage==='answering') selectSingleOption(i, b); }; 
-                    b.dataset.idx = i; 
-                    optDiv.appendChild(b); 
-                }); 
-                lucide.createIcons(); 
-            }
-            if (state.mode === 'speed') resetSpeedTimer(q);
-            
-            updateGlobalProgress();
-        }
-
-        function selectSingleOption(idx, btnElem) {
-            const q = state.questions[state.currentIdx];
-            if (q.type === 'single') { 
-                document.querySelectorAll('.option-btn').forEach(b => { 
-                    b.classList.remove('selected'); 
-                    b.querySelector('span:first-child').innerHTML = '<i data-lucide="circle" class="w-5 h-5 flex-shrink-0"></i>'; 
-                }); 
-                btnElem.classList.add('selected'); 
-                btnElem.querySelector('span:first-child').innerHTML = '<i data-lucide="circle-dot" class="w-5 h-5 flex-shrink-0"></i>'; 
-                state.answers[state.currentIdx] = idx; 
-            } else { 
-                btnElem.classList.toggle('selected'); 
-                const isSel = btnElem.classList.contains('selected'); 
-                btnElem.querySelector('span:first-child').innerHTML = isSel ? '<i data-lucide="check-square" class="w-5 h-5 flex-shrink-0"></i>' : '<i data-lucide="square" class="w-5 h-5 flex-shrink-0"></i>'; 
-                const s = []; 
-                document.querySelectorAll('.option-btn.selected').forEach(b => s.push(parseInt(b.dataset.idx))); 
-                state.answers[state.currentIdx] = s.sort(); 
-            }
-            lucide.createIcons();
-        }
-
-        function handleSingleAction(force = false) {
-            if (state.mode === 'memorize') { 
-                if (state.memoStep < 4) { 
-                    state.memoStep++; 
-                    renderMemoStep(); 
-                    document.getElementById('btn-action').innerText = state.memoStep === 4 ? '完成本题' : '下一步'; 
-                } else { 
-                    state.memoStep = 1; 
-                    nextSingleQuestion(); 
-                } 
-                return; 
-            }
-
-            if (state.singleStage === 'reviewing') { 
-                nextSingleQuestion(); 
-                return; 
-            }
-
-            const q = state.questions[state.currentIdx];
-            if (q.type === 'short') state.answers[state.currentIdx] = document.getElementById('single-short-input').value;
-
-            const userAns = state.answers[state.currentIdx];
-            if (!force && q.type !== 'short' && (userAns === undefined || (Array.isArray(userAns) && userAns.length === 0))) { 
-                showAlert('请先选择答案'); 
-                return; 
-            }
-
-            state.singleStage = 'reviewing'; 
-            document.getElementById('btn-action').innerText = '下一题';
-
-            document.querySelectorAll('.option-btn').forEach(btn => {
-                btn.classList.add('pointer-events-none'); // 彻底禁止点击
-            });
-
-            const shortInput = document.getElementById('single-short-input');
-            if (shortInput) shortInput.disabled = true;
-
-            const feedDiv = document.getElementById('single-feedback'); 
-            feedDiv.classList.remove('hidden');
-
-            const contentDiv = document.getElementById('single-feedback-content');
-            if (q.type !== 'short') { 
-                const isCorrect = checkCorrect(q, userAns); 
-                if (!isCorrect) state.mistakesSession.push(q); 
-                contentDiv.innerHTML = `<span class="font-bold">解析:</span> ${q.analysis}<br><span class="font-bold mt-2 block">正确答案: ${formatAnswer(q)}</span>`; 
-                document.querySelectorAll('.option-btn').forEach(b => { 
-                    const idx = parseInt(b.dataset.idx); 
-                    if ((q.type === 'single' && idx === q.answer) || (q.type === 'multiple' && q.answer.includes(idx))) { b.classList.add('correct'); b.classList.remove('selected'); } 
-                    else if (b.classList.contains('selected')) { b.classList.add('wrong'); b.classList.remove('selected'); } 
-                }); 
-                // --- v1.4 触发背景特效 ---
-                if (bgManager) {
-                    // 获取显示的选项文本 (例如 A, B 或者 多选的 AB)
-                    let label = formatAnswer({type: q.type, answer: userAns});
-                    // 如果多选太长，就简化一下，避免屏幕太乱
-                    if (label.length > 3) label = "Good!";
-                    
-                    bgManager.triggerEvent('answer', {
-                        correct: isCorrect,
-                        text: label,
-                        score: isCorrect ? getPoints(q.type) : 0
-                    });
-                }
-            } else { 
-                const percent = calculateFuzzyScore(q.answer, userAns); 
-                const score = Math.round((percent / 100) * getPoints('short')); 
-                state.answersScore[state.currentIdx] = score; 
-                const colorClass = score === getPoints('short') ? 'emerald' : (score > 0 ? 'amber' : 'rose'); 
-                contentDiv.innerHTML = `<div class="mb-4 p-4 bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm"><div class="flex justify-between items-end mb-2"><span class="text-sm font-bold text-slate-500 dark:text-slate-400">机器评分</span><span class="text-2xl font-bold text-${colorClass}-600 dark:text-${colorClass}-400">${score}</span></div><div class="w-full bg-slate-100 dark:bg-slate-700 rounded-full h-3"><div class="score-bar bg-${colorClass}-500 h-3 rounded-full" style="width: 0%"></div></div></div><span class="font-bold">参考答案:</span> ${q.answer}<br><br><span class="font-bold">解析:</span> ${q.analysis}`; 
-                setTimeout(() => document.querySelector('.score-bar').style.width = `${percent}%`, 100); 
-                // --- v1.4 触发背景特效 (简答题) ---
-                if (bgManager) {
-                    bgManager.triggerEvent('answer', {
-                        correct: score > 0, // 有分就算对
-                        text: score > 0 ? "Got it!" : "Oh no",
-                        score: score
-                    });
-                }
-            }
-            state.singleStage = 'reviewing'; document.getElementById('btn-action').innerText = '下一题';
-            if (state.mode !== 'exam') {
-                clearInterval(state.timer);
-                stopIntensityLoop(); // <--- 添加这行：提交单题后停止加速
-                // 并重置强度，防止背景卡在高速状态
-                if (bgManager) bgManager.setIntensity(0); 
-            }
-
-            updateGlobalProgress();
-        }
-
-        function nextSingleQuestion() { state.currentIdx < state.questions.length - 1 ? (state.currentIdx++, renderSingleMode()) : finishSession(); }
-        function renderMemoStep() { document.getElementById('memo-area').classList.remove('hidden'); document.getElementById('memo-input').value = ''; [1,2,3,4].forEach(s => document.getElementById(`step-${s}`).className = `text-xs font-bold px-3 py-1 rounded-full ${s === state.memoStep ? 'step-active' : 'step-inactive'}`); let txt = state.questions[state.currentIdx].answer; if (state.memoStep === 1) txt = txt.split('').map((c, i) => (i%2===0 || "，。：；\n".includes(c) ? c : "_")).join(''); else if (state.memoStep === 2) txt = txt.split(/([，。：；\n])/).map((s, i) => ("，。：；\n".includes(s)) ? s : (Math.floor(i/2)%2 === 0 ? s : "___")).join(''); else if (state.memoStep === 3) txt = txt.split(/([，。：；\n])/).map((s, i) => ("，。：；\n".includes(s)) ? s : (Math.floor(i/2)%2 !== 0 ? s : "___")).join(''); else txt = "请默写完整答案..."; document.getElementById('memo-display').innerText = txt; }
-
-        function resetSpeedTimer(q) { 
-            clearInterval(state.timer); 
-            stopIntensityLoop(); // 先停止旧循环
-
-            const box = document.getElementById('timer-box'); 
-            box.classList.remove('hidden'); 
-            
-            // 逻辑倒计时 (秒)
-            state.timerVal = q.type==='single'?state.settings.single : q.type==='multiple'?state.settings.multiple : Math.ceil(q.answer.length * state.settings.short); 
-            
-            // 记录总时长 (秒)
-            state.currentTotalTime = state.timerVal;
-            
-            // 【核心】重置毫秒级起点，用于平滑动画
-            state.startTime = Date.now();
-            
-            // 启动平滑循环
-            startIntensityLoop();
-
-            updateTimerDisplay(); 
-            state.timer = setInterval(() => { 
-                state.timerVal--; 
-                updateTimerDisplay(); 
-                if (state.timerVal <= 0) { 
-                    clearInterval(state.timer); 
-                    stopIntensityLoop(); // 停止平滑循环
-                    handleSingleAction(true); 
-                } 
-            }, 1000); 
-        }
-
-        function startTimer() { 
-            clearInterval(state.timer); 
-            stopIntensityLoop();
-
-            const box = document.getElementById('timer-box'); 
-            box.classList.remove('hidden'); 
-            
-            let totalExamTime = 0;
-            state.questions.forEach(q => {
-                if (q.type === 'single') totalExamTime += 10;
-                else if (q.type === 'multiple') totalExamTime += 20;
-                else totalExamTime += 60;
-            });
-            state.timerVal = totalExamTime; 
-            
-            state.currentTotalTime = state.timerVal;
-            
-            // 【核心】记录起点
-            state.startTime = Date.now();
-            
-            // 启动平滑循环
-            startIntensityLoop();
-
-            updateTimerDisplay(); 
-            state.timer = setInterval(() => { 
-                state.timerVal--; 
-                updateTimerDisplay(); 
-                if (state.timerVal <= 0) { 
-                    clearInterval(state.timer); 
-                    stopIntensityLoop();
-                    finishSession(); 
-                } 
-            }, 1000); 
-        }
-
-        function updateTimerDisplay() {
-            // 只负责更新文字，不再处理背景动画
-            document.getElementById('timer-box').innerText = `${Math.floor(state.timerVal/60).toString().padStart(2,'0')}:${(state.timerVal%60).toString().padStart(2,'0')}`; 
-        }
-
-        // 1. 显示全部答案
-        function showFullMemoAnswer() {
-            const q = state.questions[state.currentIdx];
-            if (q) document.getElementById('memo-display').innerText = q.answer;
-        }
-
-        // 2. 仅显示提示答案 (逻辑同步骤1)
-        function showHintMemoAnswer() {
-            const q = state.questions[state.currentIdx];
-            if (q) {
-                const txt = q.answer;
-                const hintTxt = txt.split('').map((c, i) => (i % 2 === 0 || "，。：；\n".includes(c) ? c : "_")).join('');
-                document.getElementById('memo-display').innerText = hintTxt;
-            }
-        }
-
-        // 3. 隐藏全部答案 (逻辑同步骤4)
-        function hideFullMemoAnswer() {
-            document.getElementById('memo-display').innerText = "请默写完整答案...";
-        }
-
-        // 更新顶部全局进度条
-        function updateGlobalProgress() {
-            const bar = document.getElementById('global-progress-bar');
-            if (!state.questions || state.questions.length === 0) {
-                bar.style.width = '0%';
-                return;
-            }
-
-            let percent = 0;
-            if (state.mode.includes('2way')) {
-                // 滚动模式：根据已填写的答案数量计算
-                const answeredCount = Object.keys(state.answers).filter(key => {
-                    const ans = state.answers[key];
-                    return ans !== undefined && ans !== null && ans !== '' && (!Array.isArray(ans) || ans.length > 0);
-                }).length;
-                percent = (answeredCount / state.questions.length) * 100;
-            } else {
-                // 单题模式：根据当前索引计算 (显示已完成的部分)
-                // 如果是在 review 阶段，视为该题已完成
-                const offset = state.singleStage === 'reviewing' ? 1 : 0;
-                percent = ((state.currentIdx + offset) / state.questions.length) * 100;
-            }
-            
-            bar.style.width = `${percent}%`;
-        }
-
-        // --- v1.4 平滑背景控制逻辑 ---
-        
-        let intensityRafId = null; // 用于存储平滑更新的动画帧ID
-
-        function startIntensityLoop() {
-            if (intensityRafId) cancelAnimationFrame(intensityRafId);
-            
-            const loop = () => {
-                updateSmoothIntensity();
-                intensityRafId = requestAnimationFrame(loop);
-            };
-            loop();
-        }
-
-        function stopIntensityLoop() {
-            if (intensityRafId) {
-                cancelAnimationFrame(intensityRafId);
-                intensityRafId = null;
-            }
-        }
-
-        function updateSmoothIntensity() {
-            if (!bgManager || !state.startTime) return;
-
-            const now = Date.now();
-            // 计算已经经过的毫秒数
-            const elapsedMs = now - state.startTime; 
-            let intensity = 0;
-
-            const isCountdown = (state.mode === 'speed' || state.mode === 'exam');
-
-            if (isCountdown) {
-                // --- 倒计时模式 ---
-                // 总时长 (毫秒)
-                const totalMs = state.currentTotalTime * 1000;
-                
-                if (totalMs > 0) {
-                    // 随着时间流逝(elapsedMs变大)，剩余时间变少，紧张感(intensity)变大
-                    // 0ms -> 0%
-                    // totalMs -> 100%
-                    intensity = elapsedMs / totalMs;
-                }
-            } else {
-                // --- 正计时模式 ---
-                // 参考上限 (毫秒)
-                const refMs = state.referenceMaxTime * 1000;
-                
-                if (refMs > 0) {
-                    intensity = elapsedMs / refMs;
-                }
-            }
-
-            // 限制范围在 0.0 ~ 1.0 之间
-            intensity = Math.max(0, Math.min(1, intensity));
-            
-            // 实时设置给背景管理器 (每秒60次调用，极为平滑)
-            bgManager.setIntensity(intensity);
-        }
-
-        async function finishSession() {
-            clearInterval(state.timer);
-            stopIntensityLoop();
-
-            let earned = 0, total = 0;
-            // 1. 计算分数
-            state.questions.forEach((q, idx) => { 
-                total += getPoints(q.type); 
-                const userAns = state.answers[idx];
-                if (q.type !== 'short') { 
-                    if (checkCorrect(q, userAns)) earned += getPoints(q.type);
-                    else state.mistakesSession.push({ ...q, sessionIdx: idx });
-                } else { 
-                    const s = (state.answersScore[idx] !== undefined ? state.answersScore[idx] : Math.round((calculateFuzzyScore(q.answer, userAns||'')/100)*getPoints('short')));
-                    earned += s;
-                    if (s < getPoints('short')) state.mistakesSession.push({ ...q, sessionIdx: idx });
-                } 
-            });
-
-            const timeSpent = Math.round((Date.now() - state.startTime) / 1000);
-            const nowStr = new Date().toLocaleString('zh-CN', { month:'numeric', day:'numeric', hour:'numeric', minute:'numeric' });
-            const name = localStorage.getItem('user_name') || '同学';
-
-            // 2. 写入 UI
-            document.getElementById('res-score').innerText = earned; 
-            document.getElementById('res-total').innerText = total; 
-            document.getElementById('res-time').innerText = `${timeSpent}s`;
-            document.getElementById('res-greeting').innerText = `${name}，你的本次练习成绩如下`; 
-            document.getElementById('res-timestamp').innerText = `练习结束时间：${nowStr}`;
-
-            // 3. 切换视图（必须先切换，Card 才有物理尺寸）
-            switchView('result');
-
-            // 4. 渲染报表（单次调用，放入下一帧确保 DOM 就绪）
-            requestAnimationFrame(() => {
-                renderMSSPReport(name, earned, timeSpent);
-            });
-
-            // 5. 存储数据
-            const h = JSON.parse(localStorage.getItem('quiz_history')) || []; 
-            h.push({ dateStr: nowStr, timestamp: Date.now(), score: earned, total, scoreRatio: total>0?Math.round((earned/total)*100):0, time: timeSpent, qCount: state.questions.length, mCount: state.mistakesSession.length }); 
-            localStorage.setItem('quiz_history', JSON.stringify(h));
-            
-            const m = JSON.parse(localStorage.getItem('quiz_mistakes')) || []; 
-            state.mistakesSession.forEach(nm => { if(!m.find(x=>x.id===nm.id)) m.push(nm); }); 
-            localStorage.setItem('quiz_mistakes', JSON.stringify(m));
-        }
-
-        function updateDashboard() {
-            const h = JSON.parse(localStorage.getItem('quiz_history')) || [];
-            const m = JSON.parse(localStorage.getItem('quiz_mistakes')) || [];
-            
-            // --- 鼓励语随机逻辑 ---
-            const quotes = [
-                "坚持就是胜利，加油！奥里给！",
-                "干就完了，这次稳如泰山！",
-                "这题你能行，拿来吧你！",
-                "解！快给题目上点难度！",
-                "这波刷完，直接经验拉满！",
-                "拿下这题，你就是天选刷题人！",
-                "错题退散！这波操作秀啊~",
-                "妖魔错题快走开~妖魔错题快走开~",
-                "笔锋所至，梦想开花！",
-                "蓄力前行，终将抵达！",
-                "稳住，你每一步都算数！",
-                "你的努力，正在解锁未来！",
-                "全神贯注，此刻即是成长！",
-                "今天的题，是明天的底气！",
-                "思路全对，下笔如有神！",
-                "逢考必过，势如破竹！",
-                "步步扎实，关关突破！",
-                "冲就对了，这波优势在你！",
-                "思路超神，直接拿下！",
-                "稳住别慌，操作稳稳当当。",
-                "你可以的，根本难不倒你！",
-                "自信点，你就是解题王！",
-                "系统提示：您已击败90%对手。",
-                "这题简单，我DNA动了！",
-                "知识已加载，秒了秒了！",
-                "优雅，永不过时（解题版）。",
-                "Buff已加满，速通此题！",
-                "前路有光，星辰正开奖。",
-                "笔下生风，答案全对。",
-                "每一步，都在靠近巅峰。",
-                "今天的你，是超级进化版！",
-                "脑力全开，灵感正在路上。",
-                "轻松拿捏，问题不大！",
-                "稳赢局，就看这一笔。",
-                "精准发力，完美通关。",
-                "秒解，这就是实力！",
-                "开干，结局必是满分！"
-            ];
-            const randomQuote = quotes[Math.floor(Math.random() * quotes.length)];
-            const quoteBox = document.getElementById('quote-box');
-            if (quoteBox) quoteBox.innerText = randomQuote;
-            // ---------------------
-
-            let avg=0, maxR=0, minR=0, maxM=0, minM=0;
-            if (h.length) { const rs = h.map(x=>x.scoreRatio||0); const ms = h.map(x=>x.mCount||0); avg = Math.round(rs.reduce((a,b)=>a+b,0)/h.length); maxR=Math.max(...rs); minR=Math.min(...rs); maxM=Math.max(...ms); minM=Math.min(...ms); }
-            
-            document.getElementById('stat-accuracy').innerText = `${avg}%`; document.getElementById('stat-acc-max').innerText = maxR; document.getElementById('stat-acc-min').innerText = minR;
-            document.getElementById('stat-count').innerText = h.length; document.getElementById('stat-mistakes').innerText = m.length; document.getElementById('stat-mis-max').innerText = maxM; document.getElementById('stat-mis-min').innerText = minM;
-            
-            if(h.length) { const l = h[h.length-1]; document.getElementById('stat-last-score').innerText = l.score; document.getElementById('stat-last-time').innerText = l.dateStr; }
-            
-            const ctx = document.getElementById('trendChart').getContext('2d'); if (window.myChart) window.myChart.destroy();
-            const recent = h.slice(-10); 
-            
-            const isDark = document.documentElement.classList.contains('dark');
-            const gridColor = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)';
-            const textColor = isDark ? '#94A3B8' : '#64748B';
-            
-            window.myChart = new Chart(ctx, { type: 'line', data: { labels: recent.map(x=>x.dateStr), datasets: [{ label: '得分率', data: recent.map(x=>x.scoreRatio), borderColor: '#4F46E5', backgroundColor: 'rgba(79, 70, 229, 0.1)', fill: true, tension: 0.4, yAxisID: 'y' }, { label: '速度', data: recent.map(x=>x.time), borderColor: '#F59E0B', borderDash: [5,5], tension: 0.4, yAxisID: 'y1' }] }, options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, scales: { y: { min: 0, max: 100, position: 'left', grid: {color: gridColor}, ticks: {color: textColor} }, y1: { position: 'right', grid: { drawOnChartArea: false }, ticks: {color: textColor} }, x: { grid: {color: gridColor}, ticks: {color: textColor} } } } });
-        }
-
-        function renderMistakes() { 
-            const list = document.getElementById('mistakes-list'); 
-            const mistakes = JSON.parse(localStorage.getItem('quiz_mistakes')) || []; 
-            if (mistakes.length === 0) { list.innerHTML = '<div class="text-center py-10 text-slate-400 dark:text-slate-600">目前没有错题！</div>'; 
-            return; 
-        } 
-        list.innerHTML = mistakes.map(m => `
-            <div class="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
-                <span class="text-xs font-bold text-rose-500 bg-rose-50 dark:bg-rose-900/30 px-2 py-1 rounded uppercase">
-                    ${m.type}
-                </span>
-                <h4 class="font-bold text-slate-800 dark:text-slate-100 mt-2 mb-2">
-                    ${m.question}
-                </h4>
-                <div class="text-sm text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-800 p-3 rounded space-y-2">
-                    <p>
-                        <span class="font-bold">解析：</span> 
-                        ${m.analysis}
-                    </p>
-                    <p class="text-slate-500 dark:text-slate-500">
-                        <span class="font-bold">答案：</span> 
-                        ${m.type === 'short' ? m.answer : formatAnswer(m)}
-                    </p>
-                </div>
-            </div>
-            `).join(''); 
-        }
-        
-        function clearMistakes() { 
-            showConfirm('确定清空错题吗？', () => {
-                localStorage.setItem('quiz_mistakes','[]'); 
-                renderMistakes(); 
-                updateDashboard();
-            });
-        }
-        
-        function loadSettingsToUI() { 
-            // 确保从本地读取最新的配置
-            const savedCfg = JSON.parse(localStorage.getItem('quiz_cfg'));
-            if (savedCfg) state.settings = savedCfg;
-
-            document.getElementById('cfg-single').value = state.settings.single; 
-            document.getElementById('cfg-multiple').value = state.settings.multiple; 
-            document.getElementById('cfg-short').value = state.settings.short; 
-            document.getElementById('cfg-random-opts').checked = !!state.settings.randomizeOptions;
-            
-            // 给口令输入框赋值
-            const pwdInput = document.getElementById('cfg-verify-pwd');
-            if (pwdInput) {
-                pwdInput.value = state.settings.verifyPassword || "";
-            }
-
-            renderFilters(); 
-            renderThemeSelection();
-        }
-
-        // --- THEME UI LOGIC (AUTO PREVIEW) ---
-
-        function renderThemeSelection() {
-            const grid = document.getElementById('theme-grid');
-            if (!grid) return;
-            
-            const current = localStorage.getItem('quiz_bg_theme') || 'none';
-            const themes = window.ProQuiz.themes;
-            
-            // 1. 无背景卡片
-            let html = `
-                <div onclick="selectBgTheme('none')" class="cursor-pointer p-3 rounded-xl border-2 transition-all group ${current==='none' ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20' : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'}">
-                    <div class="h-12 bg-slate-100 dark:bg-slate-800 rounded-lg mb-2 flex items-center justify-center text-slate-400 group-hover:text-slate-500 transition-colors">
-                        <i data-lucide="ban" class="w-6 h-6"></i>
-                    </div>
-                    <p class="text-xs font-bold text-center text-slate-600 dark:text-slate-300">无背景</p>
-                </div>
-            `;
-
-            // 2. 动态生成主题卡片
-            for (let id in themes) {
-                const t = themes[id];
-                const isActive = current === id;
-                
-                // 核心修改：从类定义中读取静态属性
-                // 如果没有定义 preview，则使用默认图标
-                const previewHtml = t.classRef.preview || 
-                    `<div class="w-full h-full flex items-center justify-center text-indigo-300"><i data-lucide="image" class="w-5 h-5"></i></div>`;
-
-                html += `
-                <div onclick="selectBgTheme('${id}')" class="cursor-pointer p-3 rounded-xl border-2 transition-all group ${isActive ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20' : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'}">
-                    <div class="h-12 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-700 rounded-lg mb-2 overflow-hidden relative shadow-sm group-hover:shadow-md transition-all">
-                         ${previewHtml}
-                    </div>
-                    <p class="text-xs font-bold text-center text-slate-600 dark:text-slate-300">${t.name}</p>
-                </div>
-                `;
-            }
-            grid.innerHTML = html;
-            lucide.createIcons();
-
-            renderThemeConfigPanel(current);
-        }
-
-       function selectBgTheme(id) {
-            localStorage.setItem('quiz_bg_theme', id);
-            if (bgManager) bgManager.loadTheme(id);
-            
-            // 刷新 UI
-            renderThemeSelection(); 
-        }
-
-        // 动态生成配置控件的核心函数 (支持分节)
-        function renderThemeConfigPanel(themeId) {
-            const container = document.getElementById('theme-config-area');
-            const controlsDiv = document.getElementById('config-controls');
-            
-            // 1. 检查主题是否有 Schema
-            const themeDef = window.ProQuiz.themes[themeId];
-            if (!themeDef || !themeDef.classRef.schema) {
-                container.classList.add('hidden');
-                return;
-            }
-
-            // 2. 获取当前配置
-            const config = bgManager ? bgManager.getEffectiveConfig(themeId) : {};
-            const schema = themeDef.classRef.schema;
-
-            // 3. 生成 HTML
-            let html = '';
-            for (const [key, field] of Object.entries(schema)) {
-                // --- 新增：处理分节标题 ---
-                if (field.type === 'section') {
-                    html += `
-                    <div class="col-span-full mt-4 mb-2 first:mt-0">
-                        <h4 class="text-xs font-bold text-indigo-500 dark:text-indigo-400 uppercase tracking-wider border-b border-slate-100 dark:border-slate-800 pb-1">
-                            ${field.label}
-                        </h4>
-                    </div>`;
-                    continue; // 跳过后续输入框生成逻辑
-                }
-                // ------------------------
-
-                const value = config[key] !== undefined ? config[key] : field.default;
-                
-                if (field.type === 'range') {
-                    html += `
-                    <div class="flex flex-col gap-1">
-                        <div class="flex justify-between">
-                            <label class="text-xs text-slate-500 dark:text-slate-400 font-medium">${field.label}</label>
-                            <span class="text-xs font-mono text-slate-400" id="val-${key}">${value}</span>
-                        </div>
-                        <input type="range" min="${field.min}" max="${field.max}" step="${field.step||1}" value="${value}" 
-                            oninput="updateBgConfig('${key}', this.value)" 
-                            class="w-full h-2 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-indigo-600">
-                    </div>`;
-                } 
-                else if (field.type === 'color') {
-                    html += `
-                    <div class="flex items-center justify-between border border-slate-200 dark:border-slate-700 p-2 rounded-lg bg-white dark:bg-slate-800/50">
-                        <label class="text-xs text-slate-500 dark:text-slate-400 font-medium">${field.label}</label>
-                        <div class="flex items-center gap-2">
-                            <div class="w-4 h-4 rounded-full border border-slate-200 dark:border-slate-600 shadow-sm" style="background-color:${value}"></div>
-                            <input type="color" value="${value}" 
-                                oninput="updateBgConfig('${key}', this.value)" 
-                                class="absolute opacity-0 w-8 h-8 cursor-pointer">
-                        </div>
-                    </div>`;
-                }
-                else if (field.type === 'select') {
-                    const opts = field.options.map(o => `<option value="${o.val}" ${o.val===value?'selected':''}>${o.txt}</option>`).join('');
-                    html += `
-                    <div class="flex flex-col gap-1">
-                        <label class="text-xs text-slate-500 dark:text-slate-400 font-medium">${field.label}</label>
-                        <select onchange="updateBgConfig('${key}', this.value)" class="w-full p-1.5 text-xs bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg outline-none focus:ring-1 focus:ring-indigo-500 text-slate-700 dark:text-slate-300">
-                            ${opts}
-                        </select>
-                    </div>`;
-                }
-                else if (field.type === 'multiselect') {
-                    const currentVals = Array.isArray(value) ? value : [field.default];
-                    const optionsHtml = field.options.map(o => {
-                        const isChecked = currentVals.includes(o.val) ? 'checked' : '';
-                        return `
-                        <label class="flex items-center gap-2 cursor-pointer bg-slate-50 dark:bg-slate-800 p-1.5 rounded border border-slate-200 dark:border-slate-700 hover:border-indigo-300 transition-colors">
-                            <input type="checkbox" value="${o.val}" ${isChecked} 
-                                onchange="updateMultiSelect('${key}', this)"
-                                class="w-3.5 h-3.5 rounded text-indigo-600 focus:ring-indigo-500 border-gray-300 dark:border-gray-600">
-                            <span class="text-[10px] sm:text-xs text-slate-600 dark:text-slate-300 select-none">${o.txt}</span>
-                        </label>
-                        `;
-                    }).join('');
-
-                    html += `
-                    <div class="flex flex-col gap-1 sm:col-span-2">
-                        <label class="text-xs text-slate-500 dark:text-slate-400 font-medium">${field.label}</label>
-                        <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                            ${optionsHtml}
-                        </div>
-                    </div>`;
-                }
-                else if (field.type === 'text') {
-                    html += `
-                    <div class="flex flex-col gap-1 sm:col-span-2">
-                        <label class="text-xs text-slate-500 dark:text-slate-400 font-medium">${field.label}</label>
-                        <input type="text" value="${value}" 
-                            onchange="updateBgConfig('${key}', this.value)" 
-                            class="w-full p-2 text-xs bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg outline-none focus:ring-1 focus:ring-indigo-500 text-slate-700 dark:text-slate-200">
-                    </div>`;
-                }
-            }
-
-            controlsDiv.innerHTML = html;
-            container.classList.remove('hidden');
-        }
-
-        // 处理多选框变更的辅助函数
-        function updateMultiSelect(key, checkbox) {
-            // 1. 获取当前配置
-            const currentConfig = bgManager ? bgManager.getEffectiveConfig(localStorage.getItem('quiz_bg_theme')) : {};
-            let vals = Array.isArray(currentConfig[key]) ? currentConfig[key] : [];
-            
-            // 2. 更新数组
-            if (checkbox.checked) {
-                if (!vals.includes(checkbox.value)) vals.push(checkbox.value);
-            } else {
-                vals = vals.filter(v => v !== checkbox.value);
-            }
-            
-            // 至少保留一个选项，防止为空导致逻辑错误
-            if (vals.length === 0) {
-                vals.push(checkbox.value); 
-                checkbox.checked = true; // 强制回显
-                return; // 不触发更新
-            }
-
-            // 3. 保存
-            updateBgConfig(key, vals);
-        }
-
-        // 前端控件回调
-        function updateBgConfig(key, value) {
-            // 更新显示数值 (如果是滑块)
-            const label = document.getElementById(`val-${key}`);
-            if (label) label.innerText = value;
-
-            // 通知 Manager
-            if (bgManager) bgManager.updateConfig(key, value);
-        }
-
-        function resetThemeConfig() {
-            const current = localStorage.getItem('quiz_bg_theme');
-            if(current && current !== 'none') {
-                localStorage.removeItem(`quiz_theme_cfg_${current}`);
-                // 重新加载
-                bgManager.loadTheme(current);
-                renderThemeSelection(); // 刷新滑块位置
-            }
-        }
-
-        // --- SETTINGS & AUTO-SAVE LOGIC (UPDATED) ---
-
-        function renderFilters() { 
-            const list = document.getElementById('filter-list'); 
-            list.innerHTML = ''; 
-            const filters = state.settings.filters || [];
-            const total = filters.length;
-
-            filters.forEach((f, idx) => { 
-                const div = document.createElement('div'); 
-                // 布局核心：手机端 flex-col (垂直排列)，桌面端 sm:flex-row (水平排列)
-                div.className = "filter-item bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-3 sm:p-4 rounded-xl flex flex-col sm:flex-row sm:items-center gap-3 fade-in group transition-all hover:border-indigo-300 dark:hover:border-indigo-700"; 
-                
-                div.innerHTML = `
-                <!-- 第一行 (手机): 序号 + 开关控件 -->
-                <div class="flex items-center justify-between sm:justify-start w-full sm:w-auto gap-3">
-                    <span class="font-bold text-slate-300 dark:text-slate-700 w-6 shrink-0 select-none">#${idx+1}</span>
-                    
-                    <div class="flex gap-2">
-                        <!-- 显示/隐藏 -->
-                        <div class="flex bg-slate-100 dark:bg-slate-800 rounded-lg p-1">
-                            <button onclick="updateFilter(${idx}, 'action', 'show')" class="px-2 sm:px-3 py-1 rounded text-xs font-bold transition-all ${f.action==='show'?'bg-white dark:bg-slate-700 shadow text-emerald-600 dark:text-emerald-400':'text-slate-500 hover:text-slate-700'}">显示</button>
-                            <button onclick="updateFilter(${idx}, 'action', 'hide')" class="px-2 sm:px-3 py-1 rounded text-xs font-bold transition-all ${f.action==='hide'?'bg-white dark:bg-slate-700 shadow text-rose-600 dark:text-rose-400':'text-slate-500 hover:text-slate-700'}">隐藏</button>
-                        </div>
-                        <!-- 单个/范围 -->
-                        <div class="flex bg-slate-100 dark:bg-slate-800 rounded-lg p-1">
-                            <button onclick="updateFilter(${idx}, 'type', 'single')" class="px-2 sm:px-3 py-1 rounded text-xs font-bold transition-all ${f.type==='single'?'bg-white dark:bg-slate-700 shadow text-indigo-600 dark:text-indigo-400':'text-slate-500 hover:text-slate-700'}">单个</button>
-                            <button onclick="updateFilter(${idx}, 'type', 'range')" class="px-2 sm:px-3 py-1 rounded text-xs font-bold transition-all ${f.type==='range'?'bg-white dark:bg-slate-700 shadow text-indigo-600 dark:text-indigo-400':'text-slate-500 hover:text-slate-700'}">范围</button>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- 第二行 (手机): ID 输入框 -->
-                <div class="flex items-center gap-2 w-full sm:flex-1">
-                    <input type="number" placeholder="ID" value="${f.val1||''}" onchange="updateFilter(${idx}, 'val1', this.value)" class="flex-1 w-full p-2 border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white rounded text-sm text-center focus:border-indigo-500 outline-none transition-all placeholder-slate-300">
-                    ${f.type === 'range' ? `
-                        <span class="text-slate-400 font-bold">-</span>
-                        <input type="number" placeholder="ID" value="${f.val2||''}" onchange="updateFilter(${idx}, 'val2', this.value)" class="flex-1 w-full p-2 border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white rounded text-sm text-center focus:border-indigo-500 outline-none transition-all placeholder-slate-300">
-                    ` : ''}
-                </div>
-
-                <!-- 第三行 (手机): 排序与删除按钮 -->
-                <div class="flex items-center justify-end sm:justify-start gap-1 w-full sm:w-auto border-t sm:border-t-0 border-slate-100 dark:border-slate-800 pt-2 sm:pt-0 mt-1 sm:mt-0">
-                    <!-- 上移 -->
-                    <button onclick="moveFilter(${idx}, -1)" class="p-2 text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors bg-slate-50 dark:bg-slate-800/50 sm:bg-transparent rounded-lg sm:rounded-none ${idx === 0 ? 'opacity-30 cursor-not-allowed' : ''}" title="上移优先级" ${idx === 0 ? 'disabled' : ''}>
-                        <i data-lucide="arrow-up" class="w-4 h-4"></i>
-                    </button>
-                    <!-- 下移 -->
-                    <button onclick="moveFilter(${idx}, 1)" class="p-2 text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors bg-slate-50 dark:bg-slate-800/50 sm:bg-transparent rounded-lg sm:rounded-none ${idx === total - 1 ? 'opacity-30 cursor-not-allowed' : ''}" title="下移优先级" ${idx === total - 1 ? 'disabled' : ''}>
-                        <i data-lucide="arrow-down" class="w-4 h-4"></i>
-                    </button>
-                    <div class="w-px h-4 bg-slate-200 dark:bg-slate-700 mx-1 hidden sm:block"></div>
-                    <!-- 删除 -->
-                    <button onclick="removeFilter(${idx})" class="p-2 text-slate-400 hover:text-white hover:bg-rose-500 transition-colors rounded-lg" title="删除规则">
-                        <i data-lucide="trash-2" class="w-4 h-4"></i>
-                    </button>
-                </div>`; 
-                list.appendChild(div); 
-            }); 
-            lucide.createIcons(); 
-        }
-
-        // 新增：移动规则位置
-        function moveFilter(index, direction) {
-            const filters = state.settings.filters;
-            const newIndex = index + direction;
-
-            // 边界检查
-            if (newIndex >= 0 && newIndex < filters.length) {
-                // 交换位置
-                [filters[index], filters[newIndex]] = [filters[newIndex], filters[index]];
-                renderFilters();
-                autoSaveSettings(); // 实时保存
-            }
-        }
-
-        function addFilter() { 
-            state.settings.filters.push({action:'show',type:'single',val1:'',val2:''}); 
-            renderFilters(); 
-            autoSaveSettings(); // 实时保存
-        }
-
-        function removeFilter(i) { 
-            state.settings.filters.splice(i,1); 
-            renderFilters(); 
-            autoSaveSettings(); // 实时保存
-        }
-
-        function updateFilter(idx, key, val) { 
-            state.settings.filters[idx][key] = val; 
-            renderFilters(); 
-            autoSaveSettings(); // 实时保存
-        }
-
-        // 核心自动保存函数
-        function autoSaveSettings() { 
-            // 1. 同步输入框的值到 State
-            const s = document.getElementById('cfg-single');
-            const m = document.getElementById('cfg-multiple');
-            const sh = document.getElementById('cfg-short');
-            const pwd = document.getElementById('cfg-verify-pwd');
-            
-            // 仅当元素存在时更新（防止在非设置页面触发报错，虽然一般不会）
-            const rndOpt = document.getElementById('cfg-random-opts');
-            if(rndOpt) state.settings.randomizeOptions = rndOpt.checked;
-            
-            localStorage.setItem('quiz_cfg', JSON.stringify(state.settings));
-
-            if(s) state.settings.single = parseInt(s.value) || 0; 
-            if(m) state.settings.multiple = parseInt(m.value) || 0; 
-            if(sh) state.settings.short = parseFloat(sh.value) || 0; 
-            if(pwd) state.settings.verifyPassword = pwd.value;
-            
-            // 2. 写入本地存储
-            localStorage.setItem('quiz_cfg', JSON.stringify(state.settings)); 
-            
-            // 可以在这里添加 Toast 提示，但为了不打扰用户，保持静默即可
-            // console.log('Settings auto-saved');
-        }
-        function saveSettings() { state.settings.single=parseInt(document.getElementById('cfg-single').value); state.settings.multiple=parseInt(document.getElementById('cfg-multiple').value); state.settings.short=parseFloat(document.getElementById('cfg-short').value); localStorage.setItem('quiz_cfg', JSON.stringify(state.settings)); showAlert('设置已保存！'); }
-        
-        // --- MANUAL SELECTION LOGIC (OPTIMIZED) ---
-
-        // 1. 打开手动选择视图
-        function openManualSelect() {
-            const filters = state.settings.filters || [];
-            let initialMode = 'neutral'; 
-            let targetIds = new Set();
-
-            // 解析当前规则
-            if (filters.length > 0) {
-                if (filters[0].action === 'show') initialMode = 'whitelist';
-                else initialMode = 'blacklist';
-
-                filters.forEach(f => {
-                    if (f.type === 'single') targetIds.add(parseInt(f.val1));
-                    else if (f.type === 'range') {
-                        for (let i = parseInt(f.val1); i <= parseInt(f.val2); i++) targetIds.add(i);
-                    }
-                });
-            }
-
-            const list = document.getElementById('manual-list');
-            const html = questionPool.map(q => {
-                let status = 'neutral';
-                let classes = 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800'; 
-                
-                if (initialMode === 'whitelist' && targetIds.has(q.id)) {
-                    status = 'show';
-                    classes = 'bg-emerald-50 dark:bg-emerald-900/30 border-emerald-500 dark:border-emerald-500 ring-1 ring-emerald-500 dark:ring-emerald-400';
-                } else if (initialMode === 'blacklist' && targetIds.has(q.id)) {
-                    status = 'hide';
-                    classes = 'bg-rose-50 dark:bg-rose-900/30 border-rose-500 dark:border-rose-500 ring-1 ring-rose-500 dark:ring-rose-400';
-                }
-
-                const shortText = q.question.length > 60 ? q.question.substring(0, 60) + '...' : q.question;
-
-                // 修改点：将 pr-14 改为 pr-20 (手机端) 和 sm:pr-28 (桌面端)，拉大间距
-                return `
-                <div id="man-row-${q.id}" 
-                     data-qid="${q.id}" 
-                     data-status="${status}" 
-                     onclick="toggleManualRow(${q.id})"
-                     class="${classes} relative p-3 pr-20 sm:pr-28 rounded-xl border flex items-center justify-between gap-4 cursor-pointer select-none transition-all duration-200 active:scale-[0.99] group">
-                    
-                    <!-- 左侧：题目信息 -->
-                    <div class="flex-1 min-w-0">
-                        <span class="text-xs font-bold text-slate-400 mb-0.5 block">#${q.id}</span>
-                        <p class="text-sm font-bold text-slate-700 dark:text-slate-200 leading-snug truncate">${shortText}</p>
-                    </div>
-
-                    <!-- 中间：手动设置的操作图标 (红绿状态) -->
-                    <div class="toggle-icon shrink-0 opacity-80 group-hover:opacity-100 transition-opacity">
-                        ${getToggleIcon(status)}
-                    </div>
-
-                    <!-- 右侧外侧：最终结果指示器 (绝对定位) -->
-                    <div class="computed-result absolute right-3 top-1/2 -translate-y-1/2 flex flex-col items-end pointer-events-none">
-                        <!-- JS 填充 -->
-                    </div>
-                </div>
-                `;
-            }).join('');
-
-            list.innerHTML = html;
-            document.getElementById('manual-select-all').checked = false;
-            updateComputedStatus();
-            switchView('manual-select');
-            lucide.createIcons();
-        }
-
-        // 辅助：获取中间的操作状态图标
-        function getToggleIcon(status) {
-            if (status === 'show') return '<div class="w-8 h-8 rounded-full bg-emerald-100 dark:bg-emerald-900/50 text-emerald-600 flex items-center justify-center"><i data-lucide="check" class="w-5 h-5"></i></div>';
-            if (status === 'hide') return '<div class="w-8 h-8 rounded-full bg-rose-100 dark:bg-rose-900/50 text-rose-600 flex items-center justify-center"><i data-lucide="x" class="w-5 h-5"></i></div>';
-            return '<div class="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-300 dark:text-slate-600 flex items-center justify-center"><i data-lucide="circle" class="w-5 h-5"></i></div>';
-        }
-
-        // 2. 实时计算
-        function updateComputedStatus() {
-            const rows = document.querySelectorAll('#manual-list > div');
-            let hasShow = false;
-            let hasHide = false;
-
-            rows.forEach(row => {
-                const s = row.dataset.status;
-                if (s === 'show') hasShow = true;
-                if (s === 'hide') hasHide = true;
-            });
-
-            rows.forEach(row => {
-                const s = row.dataset.status;
-                let willShow = true;
-
-                if (hasShow) {
-                    willShow = (s === 'show');
-                } else if (hasHide) {
-                    willShow = (s !== 'hide');
-                } else {
-                    willShow = true;
-                }
-
-                const resultDiv = row.querySelector('.computed-result');
-                if (willShow) {
-                    resultDiv.innerHTML = `
-                        <div class="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 bg-white/90 dark:bg-slate-900/90 p-1.5 rounded-lg shadow-sm border border-emerald-100 dark:border-emerald-900/50 backdrop-blur-sm">
-                            <span class="text-[10px] font-bold">显示</span>
-                            <i data-lucide="eye" class="w-4 h-4"></i>
-                        </div>`;
-                } else {
-                    resultDiv.innerHTML = `
-                        <div class="flex items-center gap-1 text-rose-500 dark:text-rose-400 bg-white/90 dark:bg-slate-900/90 p-1.5 rounded-lg shadow-sm border border-rose-100 dark:border-rose-900/50 backdrop-blur-sm">
-                            <span class="text-[10px] font-bold">隐藏</span>
-                            <i data-lucide="eye-off" class="w-4 h-4"></i>
-                        </div>`;
-                }
-            });
-            lucide.createIcons();
-        }
-
-        // 3. 点击行切换状态
-        function toggleManualRow(id) {
-            const row = document.getElementById(`man-row-${id}`);
-            const currentStatus = row.dataset.status;
-            let nextStatus, nextClass;
-
-            if (currentStatus === 'neutral') {
-                nextStatus = 'show';
-                nextClass = 'bg-emerald-50 dark:bg-emerald-900/30 border-emerald-500 dark:border-emerald-500 ring-1 ring-emerald-500 dark:ring-emerald-400';
-            } else if (currentStatus === 'show') {
-                nextStatus = 'hide';
-                nextClass = 'bg-rose-50 dark:bg-rose-900/30 border-rose-500 dark:border-rose-500 ring-1 ring-rose-500 dark:ring-rose-400';
-            } else {
-                nextStatus = 'neutral';
-                nextClass = 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800';
-            }
-
-            // 修改点：同步更新这里的 pr-20 和 sm:pr-28
-            row.className = `${nextClass} relative p-3 pr-20 sm:pr-28 rounded-xl border flex items-center justify-between gap-4 cursor-pointer select-none transition-all duration-200 active:scale-[0.99] group`;
-            row.dataset.status = nextStatus;
-            row.querySelector('.toggle-icon').innerHTML = getToggleIcon(nextStatus);
-            
-            updateComputedStatus();
-        }
-
-        // 4. 全选/全不选
-        function toggleManualAll(checkbox) {
-            const isChecked = checkbox.checked;
-            const rows = document.querySelectorAll('#manual-list > div');
-            
-            rows.forEach(row => {
-                // 修改点：同步更新这里的 pr-20 和 sm:pr-28
-                const baseClass = "relative p-3 pr-20 sm:pr-28 rounded-xl border flex items-center justify-between gap-4 cursor-pointer select-none transition-all duration-200 active:scale-[0.99] group";
-                
-                if (isChecked) {
-                    row.dataset.status = 'show';
-                    row.className = `bg-emerald-50 dark:bg-emerald-900/30 border-emerald-500 dark:border-emerald-500 ring-1 ring-emerald-500 dark:ring-emerald-400 ${baseClass}`;
-                    row.querySelector('.toggle-icon').innerHTML = getToggleIcon('show');
-                } else {
-                    row.dataset.status = 'neutral';
-                    row.className = `bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 ${baseClass}`;
-                    row.querySelector('.toggle-icon').innerHTML = getToggleIcon('neutral');
-                }
-            });
-            updateComputedStatus();
-        }
-
-        // 5. 保存逻辑
-        function saveManualSelect() {
-            const rows = document.querySelectorAll('#manual-list > div');
-            const showIds = [];
-            const hideIds = [];
-
-            rows.forEach(row => {
-                const qId = parseInt(row.dataset.qid);
-                const status = row.dataset.status;
-                if (status === 'show') showIds.push(qId);
-                else if (status === 'hide') hideIds.push(qId);
-            });
-
-            let newFilters = [];
-            if (showIds.length > 0) {
-                newFilters = compressIdsToFilters(showIds, 'show');
-            } else if (hideIds.length > 0) {
-                newFilters = compressIdsToFilters(hideIds, 'hide');
-            } else {
-                newFilters = [];
-            }
-
-            state.settings.filters = newFilters;
-            autoSaveSettings(); 
-            showAlert('筛选规则已根据您的手动选择更新并保存！');
-            switchView('settings');
-        }
-
-        // 6. 压缩算法
-        function compressIdsToFilters(ids, targetAction) {
-            if (ids.length === 0) return [];
-            ids.sort((a, b) => a - b);
-            
-            const res = [];
-            let start = ids[0];
-            let prev = ids[0];
-
-            for (let i = 1; i < ids.length; i++) {
-                if (ids[i] === prev + 1) {
-                    prev = ids[i];
-                } else {
-                    if (start === prev) {
-                        res.push({ action: targetAction, type: 'single', val1: start.toString(), val2: '' });
-                    } else {
-                        res.push({ action: targetAction, type: 'range', val1: start.toString(), val2: prev.toString() });
-                    }
-                    start = ids[i];
-                    prev = ids[i];
-                }
-            }
-            if (start === prev) {
-                res.push({ action: targetAction, type: 'single', val1: start.toString(), val2: '' });
-            } else {
-                res.push({ action: targetAction, type: 'range', val1: start.toString(), val2: prev.toString() });
-            }
-            return res;
-        }
-
-        /**
-         * MSSP 位流处理器
-         * 用于在二进制层面精确操作比特位
-         */
-        class MSSPBitBuffer {
-            constructor() {
-                this.buffer = []; // 存储 8-bit 的数组
-                this.currentByte = 0;
-                this.bitOffset = 0;
-            }
-
-            // 写入指定位宽的值 (例如 write(15, 4) 写入 1111)
-            write(value, bits) {
-                for (let i = bits - 1; i >= 0; i--) {
-                    const bit = (value >> i) & 1;
-                    this.currentByte = (this.currentByte << 1) | bit;
-                    this.bitOffset++;
-
-                    if (this.bitOffset === 8) {
-                        this.buffer.push(this.currentByte);
-                        this.currentByte = 0;
-                        this.bitOffset = 0;
-                    }
-                }
-            }
-
-            // 完成写入，处理末尾不足 8 位的情况
-            finish() {
-                if (this.bitOffset > 0) {
-                    this.currentByte <<= (8 - this.bitOffset);
-                    this.buffer.push(this.currentByte);
-                }
-                return new Uint8Array(this.buffer);
-            }
-
-            // 从 Uint8Array 加载数据用于读取
-            static fromUint8Array(array) {
-                const instance = new MSSPBitBuffer();
-                instance.readBuffer = array;
-                instance.readByteIdx = 0;
-                instance.readBitIdx = 0;
-                return instance;
-            }
-
-            // 读取指定位宽的值
-            read(bits) {
-                let value = 0;
-                for (let i = 0; i < bits; i++) {
-                    if (this.readByteIdx >= this.readBuffer.length) return null;
-                    
-                    const byte = this.readBuffer[this.readByteIdx];
-                    const bit = (byte >> (7 - this.readBitIdx)) & 1;
-                    value = (value << 1) | bit;
-                    
-                    this.readBitIdx++;
-                    if (this.readBitIdx === 8) {
-                        this.readByteIdx++;
-                        this.readBitIdx = 0;
-                    }
-                }
-                return value;
-            }
-        }
-
-        /**
-         * MSSP 字符编码转换
-         * 映射范围：0-9, A-Z, a-z
-         */
-        const MSSPCodec = {
-            ALPHABET: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz',
-
-            // 将 Uint8Array 转换为 Base62 字符串
-            encode(uint8Array) {
-                let hex = Array.from(uint8Array).map(b => b.toString(16).padStart(2, '0')).join('');
-                let num = BigInt('0x' + hex);
-                if (num === 0n) return '0';
-                
-                let res = '';
-                while (num > 0n) {
-                    res = this.ALPHABET[Number(num % 62n)] + res;
-                    num /= 62n;
-                }
-                return res;
-            },
-
-            // 将 Base62 字符串还原为 Uint8Array
-            decode(str) {
-                let num = 0n;
-                for (let char of str) {
-                    num = num * 62n + BigInt(this.ALPHABET.indexOf(char));
-                }
-                let hex = num.toString(16);
-                if (hex.length % 2 !== 0) hex = '0' + hex;
-                
-                const arr = new Uint8Array(hex.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
-                return arr;
-            }
-        };
-
-        /**
-         * MSSP 密码学组件
-         * 负责生成数据指纹以及流加密混淆
-         */
-        const MSSPCrypto = {
-            async generateFullHash(answersObj) {
-                const sortedKeys = Object.keys(answersObj).sort((a, b) => a - b);
-                const rawString = sortedKeys.map(k => `${k}:${JSON.stringify(answersObj[k])}`).join('|');
-                
-                // --- 保底逻辑：如果不支持 WebCrypto (如本地文件环境)，使用简单哈希 ---
-                if (!window.crypto || !window.crypto.subtle) {
-                    let hash = 0;
-                    for (let i = 0; i < rawString.length; i++) {
-                        hash = ((hash << 5) - hash) + rawString.charCodeAt(i);
-                        hash |= 0;
-                    }
-                    return Math.abs(hash);
-                }
-
-                const msgBuffer = new TextEncoder().encode(rawString);
-                const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
-                const view = new DataView(hashBuffer);
-                return view.getUint32(0) >>> 0;
-            },
-
-            async deriveStreamKey(teacherPassword, nonceHex, length) {
-                // 关键点：确保 nonce 补齐 4 位十六进制，保证加解密输入一致
-                const inputStr = teacherPassword + nonceHex;
-                console.log("[MSSP] 密钥派生输入:", inputStr);
-                const input = new TextEncoder().encode(inputStr);
-                const hashBuffer = await crypto.subtle.digest('SHA-256', input);
-                const hashArray = new Uint8Array(hashBuffer);
-                
-                const keyStream = new Uint8Array(length);
-                for (let i = 0; i < length; i++) {
-                    keyStream[i] = hashArray[i % hashArray.length];
-                }
-                return keyStream;
-            },
-
-            applyXOR(dataUint8Array, keyStream) {
-                const result = new Uint8Array(dataUint8Array.length);
-                for (let i = 0; i < dataUint8Array.length; i++) {
-                    result[i] = dataUint8Array[i] ^ keyStream[i];
-                }
-                return result;
-            }
-        };
-
-        const MSSP_CONFIG = {
-            VERSION: 1,
-            BASE_DATE: new Date('2026-01-01').getTime(),
-            MAX_BIT_LENGTH: 1200 // 二维码建议的最大比特长度
-        };
-
-        const MSSPEncoder = {
-            encodeOption(ans) {
-                if (ans === undefined || ans === null || ans === '') return 7;
-                if (typeof ans === 'number') return ans & 0x7; 
-                if (Array.isArray(ans)) return ans.length > 0 ? (ans[0] & 0x7) : 7;
-                if (typeof ans === 'string') return 7; // 简答题统一为 7
-                return 7;
-            },
-            
-            async pack(data, teacherPassword) {
-                console.group("--- MSSP 打包调试 ---");
-                const { name, score, duration, startTime, answers, mistakes, mode } = data; // mode 被传入
-                const modeIdx = MSSP_MODE_INDEX[mode] || 0; // 获取索引
-                const nonce = Math.floor(Math.random() * 0xFFFF);
-                const nonceHex = nonce.toString(16).padStart(4, '0');
-
-                const fullHash = await MSSPCrypto.generateFullHash(answers);
-                const timestamp = Math.floor((startTime - MSSP_CONFIG.BASE_DATE) / 60000);
-
-                const payloadBit = new MSSPBitBuffer();
-                payloadBit.write(timestamp & 0xFFFFF, 20);
-                payloadBit.write(Math.min(data.duration, 8191), 13); // 最大 8191 秒
-                payloadBit.write(Math.min(score, 127), 7);
-                payloadBit.write(modeIdx & 0x7, 3); 
-                payloadBit.write(fullHash >>> 0, 32);
-
-                const nameBytes = new TextEncoder().encode(name).slice(0, 15);
-                payloadBit.write(nameBytes.length, 4);
-                nameBytes.forEach(b => payloadBit.write(b, 8));
-
-                // 仅过滤出属于当前 session 的错题进行打包
-                const sessionMistakes = mistakes.filter(m => m.sessionIdx !== undefined);
-                const errorCount = Math.min(sessionMistakes.length, 255);
-                payloadBit.write(errorCount, 8);
-                
-                console.log(`准备打包错题数量: ${errorCount}`);
-
-                sessionMistakes.slice(0, errorCount).forEach((m, i) => {
-                    const userAns = answers[m.sessionIdx];
-                    const optCode = this.encodeOption(userAns);
-                    console.log(`错题[${i}] ID:${m.id} | SessionIdx:${m.sessionIdx} | 原始值:${JSON.stringify(userAns)} | 编码Code:${optCode}`);
-                    
-                    payloadBit.write(m.id & 0x3FF, 10);
-                    payloadBit.write(optCode, 3);
-                });
-
-                const payloadBytes = payloadBit.finish();
-                let checksum = 0;
-                payloadBytes.forEach(b => checksum ^= b);
-                const keyStream = await MSSPCrypto.deriveStreamKey(teacherPassword, nonceHex, payloadBytes.length);
-                const encryptedPayload = MSSPCrypto.applyXOR(payloadBytes, keyStream);
-
-                const finalBit = new MSSPBitBuffer();
-                finalBit.write(MSSP_CONFIG.VERSION, 8);
-                finalBit.write(nonce, 16);
-                encryptedPayload.forEach(b => finalBit.write(b, 8));
-                finalBit.write(checksum, 8);
-
-                console.groupEnd();
-                return MSSPCodec.encode(finalBit.finish());
-            }
-        };
-
-        const MSSPDecoder = {
-            async unpack(code, teacherPassword, currentAnswers) {
-                console.group("--- MSSP 解码流程 ---");
-                try {
-                    const rawBytes = MSSPCodec.decode(code);
-                    const bit = MSSPBitBuffer.fromUint8Array(rawBytes);
-                    const version = bit.read(8);
-                    const nonce = bit.read(16);
-                    const nonceHex = nonce.toString(16).padStart(4, '0');
-
-                    const encryptedPayload = rawBytes.slice(3, -1);
-                    const originalChecksum = rawBytes[rawBytes.length - 1];
-
-                    const keyStream = await MSSPCrypto.deriveStreamKey(teacherPassword, nonceHex, encryptedPayload.length);
-                    const decryptedPayload = MSSPCrypto.applyXOR(encryptedPayload, keyStream);
-
-                    let calculatedChecksum = 0;
-                    decryptedPayload.forEach(b => calculatedChecksum ^= b);
-
-                    if (calculatedChecksum !== originalChecksum) {
-                        console.groupEnd();
-                        return { success: false, msg: "口令错误或数据损坏" };
-                    }
-
-                    const pBit = MSSPBitBuffer.fromUint8Array(decryptedPayload);
-                    const result = {
-                        timestamp: pBit.read(20),
-                        duration: pBit.read(13), 
-                        score: pBit.read(7),
-                        modeIdx: pBit.read(3),
-                        storedFullHash: pBit.read(32) >>> 0
-                    };
-                    result.startTime = new Date(MSSP_CONFIG.BASE_DATE + result.timestamp * 60000);
-
-                    const nameLen = pBit.read(4);
-                    const nBytes = new Uint8Array(nameLen);
-                    for(let i=0; i<nameLen; i++) nBytes[i] = pBit.read(8);
-                    result.name = new TextDecoder().decode(nBytes);
-
-                    // --- 关键：读取错题 ---
-                    const errorCount = pBit.read(8);
-                    console.log(`[Unpack] 读取到错题总数: ${errorCount}`);
-                    result.errors = [];
-                    for (let i = 0; i < errorCount; i++) {
-                        const id = pBit.read(10);
-                        const optCode = pBit.read(3);
-                        result.errors.push({ id, optCode });
-                    }
-
-                    console.groupEnd();
-                    return { success: true, data: result };
-                } catch (e) {
-                    console.error("解码崩溃:", e);
-                    console.groupEnd();
-                    return { success: false, msg: "数据格式严重错误" };
-                }
-            }
-        };
-
-    /**
-     * 视觉指纹绘制引擎 - 增强版
-     * 绘制随机颜色、种类、大小的图形，且保持确定性（基于 Hash）
-     */
-    function drawVisualFingerprintIncremental(canvas, fullHash, nonce) {
-        const ctx = canvas.getContext('2d');
-        const w = canvas.width;
-        const h = canvas.height;
-        
-        // 1. 初始化种子：使用 >>> 0 确保 32 位无符号整数，避免负数坐标
-        let seed = (nonce ^ fullHash) >>> 0; 
-        
-        // 2. 确定性随机数生成器 (LCG)
-        const lcg = () => {
-            seed = (seed * 1664525 + 1013904223) >>> 0;
-            return seed / 4294967296;
-        };
-
-        const renderFrame = () => {
-            const viewResult = document.getElementById('view-result');
-            // 只有当结算页面显示时才绘制
-            if (viewResult && !viewResult.classList.contains('hidden')) {
-                
-                // 每帧绘制 10 个随机图形
-                for(let i = 0; i < 10; i++) {
-                    const shapeType = Math.floor(lcg() * 6); // 增加到 6 种图形
-                    const x = lcg() * w;
-                    const y = lcg() * h;
-                    const size = 10 + lcg() * 60; // 随机大小
-                    
-                    // --- 随机颜色生成 ---
-                    // 使用 HSL 颜色空间，保证颜色鲜艳度适中且透明
-                    const hue = Math.floor(lcg() * 360);      // 全色相随机
-                    const sat = 30 + Math.floor(lcg() * 50); // 饱和度 30%-80%
-                    const light = 70 + Math.floor(lcg() * 30); // 亮度偏高，确保背景清爽
-                    const alpha = 0.05 + (lcg() * 0.25);     // 透明度 0.05-0.25
-                    
-                    const color = `hsla(${hue}, ${sat}%, ${light}%, ${alpha})`;
-                    ctx.fillStyle = color;
-                    ctx.strokeStyle = color;
-                    ctx.lineWidth = 1 + lcg() * 3;
-
-                    ctx.beginPath();
-                    
-                    switch(shapeType) {
-                        case 0: // 填充圆
-                            ctx.arc(x, y, size / 2, 0, Math.PI * 2);
-                            ctx.fill();
-                            break;
-                        case 1: // 实心矩形
-                            ctx.fillRect(x, y, size, size * 0.8);
-                            break;
-                        case 2: // 描边矩形
-                            ctx.strokeRect(x, y, size, size);
-                            break;
-                        case 3: // 随机字符 (数字或字母)
-                            const char = String.fromCharCode(Math.floor(lcg() * 26) + 65); // A-Z
-                            ctx.font = `bold ${Math.floor(size)}px monospace`;
-                            ctx.fillText(char, x, y);
-                            break;
-                        case 4: // 随机线条
-                            ctx.moveTo(x, y);
-                            ctx.lineTo(x + (lcg() - 0.5) * 150, y + (lcg() - 0.5) * 150);
-                            ctx.stroke();
-                            break;
-                        case 5: // 三角形
-                            const side = size;
-                            ctx.moveTo(x, y);
-                            ctx.lineTo(x + side, y);
-                            ctx.lineTo(x + side/2, y - side * 0.8);
-                            ctx.closePath();
-                            ctx.fill();
-                            break;
-                    }
-                }
-            }
-            // 持续请求下一帧，实现动态增长的视觉指纹
-            securityAnimId = requestAnimationFrame(renderFrame);
-        };
-
-        if (securityAnimId) cancelAnimationFrame(securityAnimId);
-        
-        // 启动前先清空画布
-        ctx.clearRect(0, 0, w, h);
-        renderFrame();
-    }
-
-    function formatDuration(seconds) {
-        const m = Math.floor(seconds / 60);
-        const s = seconds % 60;
-        return m > 0 ? `${m}分${s}秒` : `${s}秒`;
-    }
-
-    /**
-     * 启动验证流程
-     * 通常在 URL 中检测到 ?mssp=... 时触发
-     */
-    async function runMSSPVerification(code) {
-        // 1. 获取本地设置的口令（如果没有设，默认为空字符串）
-        let pwd = state.settings.verifyPassword || "";
-        
-        // 切换到验证视图
-        switchView('verify-result');
-        const currentAnswers = state.answers || {}; 
-        const isLocalEmpty = Object.keys(currentAnswers).length === 0;
-
-        // 2. 第一次尝试解码
-        let result = await MSSPDecoder.unpack(code, pwd, currentAnswers);
-
-        // 3. 如果第一次失败，尝试手动输入
-        if (!result.success) {
-            // 弹出输入框
-            const manualPwd = prompt("本地校验口令不匹配，请输入正确的核验口令：");
-            if (manualPwd !== null) { // 用户没有点取消
-                pwd = manualPwd;
-                // 第二次尝试解码
-                result = await MSSPDecoder.unpack(code, pwd, currentAnswers);
-            }
-        }
-
-        // 4. 处理最终结果显示
-        const header = document.getElementById('verify-status-header');
-        const iconDiv = document.getElementById('verify-status-icon');
-        const title = document.getElementById('verify-status-title');
-        const msg = document.getElementById('verify-status-msg');
-        const tamperWarn = document.getElementById('v-tamper-warn');
-
-        if (result.success) {
-            // --- 验证成功逻辑 ---
-            
-            // 渲染错题清单（非常重要，必须传入正确的解密数据）
-            renderVerifiedQuestions(result.data.errors, result.data.score);
-
-            const currentFullHash = await MSSPCrypto.generateFullHash(currentAnswers);
-            const isTampered = !isLocalEmpty && (currentFullHash !== result.data.storedFullHash);
-            const isRemote = isLocalEmpty;
-
-            if (isTampered) {
-                header.className = "p-6 text-center bg-rose-600 text-white";
-                iconDiv.innerHTML = '<i data-lucide="shield-alert" class="w-10 h-10"></i>';
-                title.innerText = "检测到篡改！";
-                msg.innerText = "数据解密成功，但与本地题目指纹不符";
-                tamperWarn.classList.remove('hidden');
-                tamperWarn.innerHTML = `<i data-lucide="alert-triangle" class="w-4 h-4 shrink-0"></i> <span><b>篡改警告：</b>检测到本地题目已被修改。请以解密显示的 <b class='underline'>${result.data.score}</b> 分为准。</span>`;
-            } else {
-                header.className = isRemote ? "p-6 text-center bg-indigo-500 text-white" : "p-6 text-center bg-emerald-500 text-white";
-                iconDiv.innerHTML = '<i data-lucide="shield-check" class="w-10 h-10"></i>';
-                title.innerText = isRemote ? "认证有效 (远程)" : "官方认证有效";
-                msg.innerText = "数据解密成功，成绩记录完整。";
-                tamperWarn.classList.add('hidden');
-            }
-
-            // 填充详细字段
-            document.getElementById('v-name').innerText = result.data.name;
-            document.getElementById('v-score').innerText = result.data.score;
-            document.getElementById('v-mode').innerText = MSSP_MODE_NAME[result.data.modeIdx] || '未知';
-            document.getElementById('v-time').innerText = formatDuration(result.data.duration);
-            document.getElementById('v-date').innerText = result.data.startTime.toLocaleString();
-            
-        } else {
-            // --- 验证失败逻辑 ---
-            header.className = "p-6 text-center bg-slate-800 text-white";
-            iconDiv.innerHTML = '<i data-lucide="shield-x" class="w-10 h-10"></i>';
-            title.innerText = "验证失败";
-            msg.innerText = result.msg || "口令错误，无法解密成绩数据。";
-            tamperWarn.classList.add('hidden');
-            
-            // 清空列表和字段
-            document.getElementById('v-question-list').innerHTML = '';
-            ['v-name', 'v-score', 'v-time', 'v-date', 'v-mode'].forEach(id => document.getElementById(id).innerText = "---");
-        }
-
-        // 清理 URL 参数并重绘图标
-        window.history.replaceState({}, '', window.location.pathname);
-        lucide.createIcons();
-    }
-
-    /**
-     * 渲染加密成绩单卡片
-     */
-    async function renderMSSPReport(name, score, timeSpent) {
-        const reportName = document.getElementById('report-name');
-        const reportScore = document.getElementById('report-score');
-        const reportMode = document.getElementById('report-mode');
-        const reportTime = document.getElementById('report-time');
-        const qrContainer = document.getElementById('qrcode-container');
-        const canvas = document.getElementById('security-canvas');
-        const fingerprintLabel = document.getElementById('report-fingerprint');
-
-        const now = new Date();
-        const pad = (n) => n.toString().padStart(2, '0');
-        const timeStr = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
-        
-        const teacherPwd = MSSP_INTERNAL_SECRET;  // 口令
-        const packData = {
-            name, score, duration: timeSpent, 
-            startTime: state.startTime,
-            answers: state.answers,
-            mistakes: state.mistakesSession,
-            mode: state.mode
-        };
-
-        try {
-            // 生成二维码
-            const msspCode = await MSSPEncoder.pack(packData, teacherPwd);
-            const verifyUrl = window.location.origin + window.location.pathname + "?mssp=" + msspCode;
-
-            console.log("--- MSSP 调试信息 ---");
-            console.log("验证链接:", verifyUrl);
-            console.log("--------------------");
-
-            reportName.innerText = name;
-            reportScore.innerText = score;
-            reportTime.innerText = timeStr;
-
-            const modeIdx = MSSP_MODE_INDEX[state.mode] || 0;
-            reportMode.innerText = MSSP_MODE_NAME[modeIdx] || '未知模式';
-
-            qrContainer.innerHTML = '';
-            new QRCode(qrContainer, {
-                text: verifyUrl,
-                width: 170,
-                height: 170,
-                colorDark: "#1e1b4b",
-                colorLight: "#ffffff",
-                correctLevel: QRCode.CorrectLevel.M 
-            });
-
-            // 关键：等待一帧，确保 switchView('result') 导致的 DOM 渲染已完成
-            requestAnimationFrame(async () => {
-                const fullHash = await MSSPCrypto.generateFullHash(state.answers);
-                const nonce = Math.floor(Math.random() * 0xFFFF);
-                fingerprintLabel.innerText = fullHash.toString(16).toUpperCase();
-
-                // 设置画布逻辑尺寸为物理显示的尺寸
-                canvas.width = canvas.offsetWidth || 350;
-                canvas.height = canvas.offsetHeight || 500;
-
-                const ctx = canvas.getContext('2d');
-                ctx.clearRect(0, 0, canvas.width, canvas.height); 
-
-                drawVisualFingerprintIncremental(canvas, fullHash, nonce);
-            });
-
-        } catch (e) {
-            console.error("MSSP Report Error:", e);
-        }
-    }
-
-    /**
-     * 渲染验证后的题目清单
-     * @param {Array} errors 解码出的错题数组 [{id, optCode}]
-     * @param {number} totalScore 本次总分
-     */
-    function renderVerifiedQuestions(errors, totalScore) {
-        const listContainer = document.getElementById('v-question-list');
-        listContainer.innerHTML = '';
-
-        if (!errors || errors.length === 0) {
-            if (totalScore > 0) {
-                listContainer.innerHTML = `<div class="p-4 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 text-center text-emerald-700 text-sm font-bold">🎉 全对通过</div>`;
-            }
-            return;
-        }
-
-        errors.forEach(err => {
-            const qData = questionPool.find(q => q.id === err.id);
-            if (!qData) return;
-
-            const card = document.createElement('div');
-            card.className = "p-3 rounded-xl border border-rose-200 dark:border-rose-900/40 bg-rose-50/30 dark:bg-rose-900/10 flex gap-3";
-            
-            // 解析选项显示
-            let userChoiceDisplay = "";
-            if (err.optCode === 7) {
-                userChoiceDisplay = qData.type === 'short' ? "已答" : "未填";
-            } else {
-                userChoiceDisplay = String.fromCharCode(65 + err.optCode);
-            }
-
-            const correctDisplay = qData.type === 'short' ? "参考答案" : formatAnswer(qData);
-            
-            card.innerHTML = `
-                <div class="shrink-0 w-6 h-6 rounded-full bg-rose-500 text-white text-[10px] flex items-center justify-center font-bold shadow-sm">错</div>
-                <div class="flex-1 min-w-0">
-                    <p class="text-[13px] font-bold text-slate-800 dark:text-slate-200 mb-1 truncate">#${qData.id} ${qData.question}</p>
-                    <div class="flex gap-4 text-[11px] font-medium">
-                        <span class="text-rose-600 dark:text-rose-400 bg-rose-100 dark:bg-rose-900/30 px-1.5 py-0.5 rounded">学生: ${userChoiceDisplay}</span>
-                        <span class="text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/30 px-1.5 py-0.5 rounded">正确: ${correctDisplay}</span>
-                    </div>
-                </div>`;
-            listContainer.appendChild(card);
-        });
-    }
-    </script>
+    
 </body>
 </html>
