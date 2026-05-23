@@ -90,6 +90,6 @@ ProQuiz/
 - **作者**: XK
 - **Email**: kangxu346@gmail.com
 - **GitHub**: [@XK-SZG](https://github.com/XK-SZG)
-- **版本**: v1.6
+- **版本**: v1.7
 
 本项目为个人开发项目，仅供学习交流使用。ProQuiz © 2026 by XK. 保留所有权利。
